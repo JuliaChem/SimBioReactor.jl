@@ -1,5 +1,5 @@
-using Gtk.ShortNames
-using Gtk
+using Gtk, Gtk.ShortNames, GR, Printf, CSV
+import DefaultApplication
 
 # Create window
 mainWin = Window()
@@ -119,9 +119,14 @@ signal_connect(parEst, :clicked) do widget
     # Frame Grids
     ############################################################################
     parEstFrame1Grid = Grid()
-    set_gtk_property!(parEstFrame1Grid, :column_homogeneous, false)
+    set_gtk_property!(parEstFrame1Grid, :column_homogeneous, true)
     set_gtk_property!(parEstFrame1Grid, :row_homogeneous, false)
     set_gtk_property!(parEstFrame1Grid, :row_spacing, 10)
+    set_gtk_property!(parEstFrame1Grid, :column_spacing, 10)
+    set_gtk_property!(parEstFrame1Grid, :margin_top, 10)
+    set_gtk_property!(parEstFrame1Grid, :margin_bottom, 10)
+    set_gtk_property!(parEstFrame1Grid, :margin_left, 10)
+    set_gtk_property!(parEstFrame1Grid, :margin_right, 10)
 
     parEstFrame2Grid = Grid()
     set_gtk_property!(parEstFrame2Grid, :column_homogeneous, false)
@@ -129,9 +134,14 @@ signal_connect(parEst, :clicked) do widget
     set_gtk_property!(parEstFrame2Grid, :row_spacing, 10)
 
     parEstFrame3Grid = Grid()
-    set_gtk_property!(parEstFrame3Grid, :column_homogeneous, false)
+    set_gtk_property!(parEstFrame3Grid, :column_homogeneous, true)
     set_gtk_property!(parEstFrame3Grid, :row_homogeneous, false)
     set_gtk_property!(parEstFrame3Grid, :row_spacing, 10)
+    set_gtk_property!(parEstFrame3Grid, :column_spacing, 10)
+    set_gtk_property!(parEstFrame3Grid, :margin_top, 10)
+    set_gtk_property!(parEstFrame3Grid, :margin_bottom, 10)
+    set_gtk_property!(parEstFrame3Grid, :margin_left, 10)
+    set_gtk_property!(parEstFrame3Grid, :margin_right, 10)
 
     parEstFrame4Grid = Grid()
     set_gtk_property!(parEstFrame4Grid, :column_homogeneous, true)
@@ -153,7 +163,7 @@ signal_connect(parEst, :clicked) do widget
 
     parEstWinFrame2 = Frame("Graphics")
     set_gtk_property!(parEstWinFrame2, :width_request, 570)
-    set_gtk_property!(parEstWinFrame2, :height_request, 450)
+    set_gtk_property!(parEstWinFrame2, :height_request, 470)
     set_gtk_property!(parEstWinFrame2, :label_xalign, 0.50)
 
     parEstWinFrame3 = Frame("Fit Settings")
@@ -182,10 +192,85 @@ signal_connect(parEst, :clicked) do widget
     parEstSave = Button("Save")
     parEstReport = Button("Report")
     parEstClearPlot = Button("Clear")
+    parEstClearModel = Button("Clear")
     parEstClearData = Button("Clear")
+
     parEstPlot = Button("Plot")
+    canvasEstPar = Canvas(540, 440)
+    signal_connect(parEstPlot, :clicked) do widget
+        ############################################################################
+        # Plot
+        ############################################################################
+        function plot(ctx, w, h)
+            ENV["GKS_WSTYPE"] = "142"
+            ENV["GKSconid"] = @sprintf("%lu", UInt64(ctx.ptr))
+            plt = gcf()
+            plt[:size] = (w, h)
+            GR.plot(1:20)
+        end
+
+        function draw(widget)
+            ctx = Gtk.getgc(widget)
+            w = Gtk.width(widget)
+            h = Gtk.height(widget)
+            plot(ctx, w, h)
+        end
+        canvasEstPar.draw = draw
+        parEstFrame2Grid[1,1] = canvasEstPar
+        showall(canvasEstPar)
+
+    end
+
     parEstFit = Button("Fit")
     parEstLoad = Button("Load")
+
+    ############################################################################
+    # Datasheet
+    ############################################################################
+    parEstGridScroll = Grid()
+    parEstScrollWin = ScrolledWindow(parEstGridScroll)
+
+    # Table for data
+    parEstDataList = ListStore(Float64, Float64)
+
+    # Visual table
+    parEstDataView = TreeView(TreeModel(parEstDataList))
+    #set_gtk_property!(parEstDataView, :width_request, 280)
+    set_gtk_property!(parEstDataView, :reorderable, true)
+
+    # Set selectable
+    selmodel = G_.selection(parEstDataView)
+    set_gtk_property!(parEstDataView, :height_request,340)
+
+    # Define type of cell
+    rTxt = CellRendererText()
+
+    # Define the source of data
+    c1 = TreeViewColumn(" ", rTxt, Dict([("text",0)]))
+    c2 = TreeViewColumn(" ", rTxt, Dict([("text",1)]))
+
+    # Allows to select rows
+    for c in [c1, c2]
+      GAccessor.resizable(c, true)
+    end
+    set_gtk_property!(parEstDataView, :enable_grid_lines, 3)
+    set_gtk_property!(parEstDataView, :expand, true)
+
+    push!(parEstDataView, c1, c2)
+
+    parEstGridScroll[1,1] = parEstDataView
+    parEstFrame1Grid[1:2,2] = parEstScrollWin
+
+    ############################################################################
+    # ComboBox
+    ############################################################################
+    parEstComboBox = GtkComboBoxText()
+    choices = ["Select a model", "Monod 1", "Monod 2", "Monod 3", "Monod 4", "Best Model"]
+    for choice in choices
+      push!(parEstComboBox,choice)
+    end
+    # Lets set the active element to be "two"
+    set_gtk_property!(parEstComboBox,:active,0)
 
     ############################################################################
     # element location on parEstWin
@@ -194,6 +279,14 @@ signal_connect(parEst, :clicked) do widget
     parEstWinGridM1[1,2] = parEstWinFrame3
     parEstWinGridM2[1,1] = parEstWinFrame2
     parEstWinGridM2[1,2] = parEstWinFrame4
+
+    parEstFrame1Grid[1:2,1] = parEstLoad
+    parEstFrame1Grid[1,3] = parEstClearData
+    parEstFrame1Grid[2,3] = parEstPlot
+
+    parEstFrame3Grid[1:2,1] = parEstComboBox
+    parEstFrame3Grid[1,3] = parEstClearModel
+    parEstFrame3Grid[2,3] = parEstFit
 
     parEstFrame4Grid[1,1] = parEstReport
     parEstFrame4Grid[1,2] = parEstClose
@@ -212,9 +305,19 @@ signal_connect(parEst, :clicked) do widget
     showall(parEstWin)
 end
 
+################################################################################
+# Action for button "Documentation"
+################################################################################
 doc = Button("Documentation")
+signal_connect(doc, :clicked) do widget
+    cd("C:\\Users\\Kelvyn\\Dropbox\\TecNM-Celaya\\04_Research\\Obj 1\\SimBioReactor.jl\\doc\\")
+    DefaultApplication.open("docs.pdf")
+    cd("C:\\Users\\Kelvyn\\Dropbox\\TecNM-Celaya\\04_Research\\Obj 1\\SimBioReactor.jl")
+end
 
-# Action for button "about"
+################################################################################
+# Action for button "About"
+################################################################################
 about = Button("About")
 
 signal_connect(about, :clicked) do widget
@@ -259,13 +362,18 @@ signal_connect(about, :clicked) do widget
     showall(aboutWin)
 end
 
-# Action for button "exit"
+################################################################################
+# Action for button "Exit"
+################################################################################
 exit = Button("Exit")
 signal_connect(exit, :clicked) do widget
     destroy(mainWin)
 end
 
+################################################################################
 # Set buttons to mainGrid
+################################################################################
+
 mainGrid[1,1] = new
 mainGrid[1,2] = open
 mainGrid[1,3] = parEst

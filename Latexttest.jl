@@ -1,4 +1,5 @@
 using Mustache
+import DefaultApplication
 
 students = [
   Dict( "name" => "John", "surname" => "Smith", "marks" => [25, 32, 40, 38] ),
@@ -27,3 +28,4 @@ for student in students
   end
   run(`pdflatex $filename`)
 end
+DefaultApplication.open("Elisa_White.pdf")
