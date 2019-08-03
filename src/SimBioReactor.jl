@@ -88,6 +88,8 @@ open = Button("Open simulation")
 # Action for button "Parameter Estimation"
 ################################################################################
 parEstData = DataFrames.DataFrame()
+global plotStatus = 0
+global canvasStatus = 0
 parEst = Button("Parameter estimation")
 signal_connect(parEst, :clicked) do widget
     parEstWin = Window()
@@ -219,6 +221,9 @@ signal_connect(parEst, :clicked) do widget
         set_gtk_property!(parEstLabelX, :tooltip_markup, "X label")
         set_gtk_property!(parEstLabelX, :width_request, 150)
         set_gtk_property!(parEstLabelX, :text, "X label")
+        signal_connect(parEstLabelX, :focus_in_event) do widget
+            set_gtk_property!(parEstLabelX, :text, "")
+        end
 
         parEstLabelY = Entry()
         set_gtk_property!(parEstLabelY, :tooltip_markup, "Y label")
@@ -252,8 +257,8 @@ signal_connect(parEst, :clicked) do widget
             rTxt1 = CellRendererText()
 
             # Define the source of data
-            c1 = TreeViewColumn(String(labelX), rTxt1, Dict([("text",0)]))
-            c2 = TreeViewColumn(String(labelY), rTxt1, Dict([("text",1)]))
+            global c1 = TreeViewColumn(String(labelX), rTxt1, Dict([("text",0)]))
+            global c2 = TreeViewColumn(String(labelY), rTxt1, Dict([("text",1)]))
 
             # Allows to select rows
             for c in [c1, c2]
@@ -271,6 +276,7 @@ signal_connect(parEst, :clicked) do widget
                 push!(parEstDataList,(data[i,1], data[i,2]))
             end
             destroy(parEstLoadWin)
+            global plotStatus = 1
         end
 
         parEstGridLoad2 = Grid()
@@ -300,13 +306,33 @@ signal_connect(parEst, :clicked) do widget
         destroy(parEstWin)
     end
 
+    # Signal connect to clear de listdata
+    parEstClearData = Button("Clear")
+    signal_connect(parEstClearData, "clicked") do widget
+        global parEstDataView, c1, c2
+        while length(parEstDataList) > 0
+            deleteat!(parEstDataList,1)
+            DataFrames.deleterows!(parEstData,1)
+        end
+
+        visible(canvasEstPar, false)
+        global plotStatus = 0
+        global canvasStatus = 1
+    end
+
     parEstSave = Button("Save")
     parEstReport = Button("Report")
     parEstExport = Button("Export")
     parEstModel = Button("Model")
+
+    # Signal connect to clear plot
     parEstClearPlot = Button("Clear")
+    signal_connect(parEstClearPlot, :clicked) do widget
+        visible(canvasEstPar, false)
+        global canvasStatus = 1
+    end
+
     parEstClearModel = Button("Clear")
-    parEstClearData = Button("Clear")
     parEstInitial = Button("Initial guess")
 
     ############################################################################
@@ -315,26 +341,39 @@ signal_connect(parEst, :clicked) do widget
     parEstPlot = Button("Plot")
     canvasEstPar = Canvas(540, 440)
     signal_connect(parEstPlot, :clicked) do widget
-        function plot(ctx, w, h)
-            global parEstData, labelX, labelY
-            ENV["GKS_WSTYPE"] = "142"
-            ENV["GKSconid"] = @sprintf("%lu", UInt64(ctx.ptr))
-            plt = gcf()
-            plt[:size] = (w, h)
-            GR.plot(parEstData[:,1], parEstData[:,2], "bo",
-            xlabel=String(labelX), ylabel=String(labelY))
+        global plotStatus, canvasStatus
+        if plotStatus == 1
+            function plot(ctx, w, h)
+                global parEstData, labelX, labelY
+                ENV["GKS_WSTYPE"] = "142"
+                ENV["GKSconid"] = @sprintf("%lu", UInt64(ctx.ptr))
+                plt = gcf()
+                plt[:size] = (w, h)
+                GR.plot(parEstData[:,1], parEstData[:,2], "bo",
+                xlabel=String(labelX), ylabel=String(labelY))
+            end
+
+            function draw(widget)
+                ctx = Gtk.getgc(widget)
+                w = Gtk.width(widget)
+                h = Gtk.height(widget)
+                plot(ctx, w, h)
+            end
+
+            canvasEstPar.draw = draw
+
+            # if statement needed to avoid "gtk_grid_attach: assertion
+            # '_gtk_widget_get_parent (child) == NULL' failed"
+            if canvasStatus == 0
+                parEstFrame2Grid[1,1] = canvasEstPar
+            end
+            visible(canvasEstPar, true)
+            showall(canvasEstPar)
         end
 
-        function draw(widget)
-            ctx = Gtk.getgc(widget)
-            w = Gtk.width(widget)
-            h = Gtk.height(widget)
-            plot(ctx, w, h)
+        if plotStatus == 0
+            warn_dialog("No data available to plot", parEstWin)
         end
-
-        canvasEstPar.draw = draw
-        parEstFrame2Grid[1,1] = canvasEstPar
-        showall(canvasEstPar)
     end
 
     parEstFit = Button("Fit")
@@ -349,7 +388,7 @@ signal_connect(parEst, :clicked) do widget
     parEstDataList = ListStore(Float64, Float64)
 
     # Visual table
-    parEstDataView = TreeView(TreeModel(parEstDataList))
+    global parEstDataView = TreeView(TreeModel(parEstDataList))
     set_gtk_property!(parEstDataView, :reorderable, true)
     set_gtk_property!(parEstDataView, :hover_selection, true)
 
@@ -421,7 +460,8 @@ signal_connect(parEst, :clicked) do widget
     # ComboBox
     ############################################################################
     parEstComboBox = GtkComboBoxText()
-    choices = ["Select a model", "Monod 1", "Monod 2", "Monod 3", "Monod 4", "Best Model"]
+    choices = ["Select a model", "Bertalanffy", "Brody",
+               "Gompertz", "Logistic", "Richards", "Best model"]
     for choice in choices
       push!(parEstComboBox,choice)
     end
