@@ -1,4 +1,4 @@
-using Mustache
+using Mustache, Gtk
 import DefaultApplication
 
 students = [
