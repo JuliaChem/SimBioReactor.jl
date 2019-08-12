@@ -1,6 +1,15 @@
 using Gtk, Gtk.ShortNames, GR, Printf, CSV
 import DefaultApplication, DataFrames
 
+# Environmental variable to allow Windows decorations
+ENV["GTK_CSD"] = 0
+
+# Variable declaration for parEst Plots
+canvas = nothing
+plotStatus = 0
+const xvals = Ref(zeros(0))
+const yvals = Ref(zeros(0))
+
 # Create window
 mainWin = Window()
 #sc = Gtk.GAccessor.style_context(mainWin)
@@ -87,14 +96,11 @@ open = Button("Open simulation")
 ################################################################################
 # Action for button "Parameter Estimation"
 ################################################################################
-parEstData = DataFrames.DataFrame()
-global plotStatus = 0 # clear status for plot
-global canvasStatus = 0
-global TreeViewStatus = 0 # variable for hearders
-
+parEstModel = DataFrames.DataFrame()
+plotStatus = 0
 parEst = Button("Parameter estimation")
 signal_connect(parEst, :clicked) do widget
-    parEstWin = Window()
+    global parEstWin = Window()
     set_gtk_property!(parEstWin, :visible, true)
     set_gtk_property!(parEstWin, :title, "Parameter Estimation - SimBioReactor 1.0")
     set_gtk_property!(parEstWin, :window_position, 3)
@@ -193,7 +199,7 @@ signal_connect(parEst, :clicked) do widget
     set_gtk_property!(parEstWinFrame4, :height_request, 150)
 
     global parEstWinFrameData = Frame()
-    parEstWinFrameModel = Frame()
+    global parEstWinFrameModel = Frame()
     set_gtk_property!(parEstWinFrameModel, :height_request, 150)
 
     ############################################################################
@@ -250,8 +256,8 @@ signal_connect(parEst, :clicked) do widget
         # Add data to datasheet
         parEstAdd2Data = Button("Add")
         signal_connect(parEstAdd2Data, :clicked) do widget
-            global dlg, parEstData, parEstDataView, labelX, labelY
-            global TreeViewStatus
+            global dlg, parEstData, parEstDataView, parEstDataList
+            global data, labelX, labelY
 
             labelX = get_gtk_property(parEstLabelX, :text, String)
             labelY = get_gtk_property(parEstLabelY, :text, String)
@@ -270,6 +276,8 @@ signal_connect(parEst, :clicked) do widget
 
             push!(parEstDataView, c1, c2)
 
+            global parEstData = DataFrames.DataFrame()
+
             data = CSV.read(dlg, datarow = 1)
             parEstData[!, Symbol(labelX)] = data[:,1]
             parEstData[!, Symbol(labelY)] = data[:,2]
@@ -279,8 +287,18 @@ signal_connect(parEst, :clicked) do widget
                 push!(parEstDataList, (data[i,1], data[i,2]))
             end
             destroy(parEstLoadWin)
-            global plotStatus = 1
-            global TreeViewStatus = 1
+
+            # Plot
+            if plotStatus == 0
+                visible(parEstFrame2Grid, true)
+                runme()
+                global plotStatus = 1
+            else
+                visible(parEstFrame2Grid, true)
+                on_button_clicked(1)
+            end
+
+            set_gtk_property!(parEstLoad, :sensitive, false)
         end
 
         parEstGridLoad2 = Grid()
@@ -313,7 +331,7 @@ signal_connect(parEst, :clicked) do widget
     # Signal connect to clear de listdata
     parEstClearData = Button("Clear")
     signal_connect(parEstClearData, "clicked") do widget
-        global parEstDataView, c1, c2, parEstWinFrameData
+        global parEstWinFrameDatad
 
         destroy(parEstWinFrameData) # Delete treeview to clear data table
 
@@ -341,14 +359,7 @@ signal_connect(parEst, :clicked) do widget
         parEstFrame1Grid[1:2,2] = parEstWinFrameData
         showall(parEstWin)
 
-        while length(parEstDataList) > 0
-            empty!(parEstDataList)
-            DataFrames.deleterows!(parEstData, 1)
-        end
-
-        visible(canvasEstPar, false)
-        global plotStatus = 0
-        global canvasStatus = 1
+        visible(parEstFrame2Grid, false)
     end
 
     parEstSave = Button("Save")
@@ -356,57 +367,56 @@ signal_connect(parEst, :clicked) do widget
     parEstExport = Button("Export")
 
     # Signal connect to clear plot
-    parEstClearPlot = Button("Clear")
+    parEstClearPlot = Button("Clear all")
     signal_connect(parEstClearPlot, :clicked) do widget
-        visible(canvasEstPar, false)
-        global canvasStatus = 1
+        shwowall(parEstWin)
     end
 
     parEstClearModel = Button("Clear")
+    signal_connect(parEstClearModel, :clicked) do widget
+        Gtk.@sigatom set_gtk_property!(parEstComboBox, :active, -1)
+    end
+
     parEstInitial = Button("Initial guess")
+
+    ############################################################################
+    # Fit button
+    ############################################################################
+    parEstFit = Button("Fit")
 
     ############################################################################
     # Plot
     ############################################################################
-    parEstPlot = Button("Plot")
-    canvasEstPar = Canvas(540, 440)
-    signal_connect(parEstPlot, :clicked) do widget
-        global plotStatus, canvasStatus
-        if plotStatus == 1
-            function plot(ctx, w, h)
-                global parEstData, labelX, labelY
-                ENV["GKS_WSTYPE"] = "142"
-                ENV["GKSconid"] = @sprintf("%lu", UInt64(ctx.ptr))
-                plt = gcf()
-                plt[:size] = (w, h)
-                GR.plot(parEstData[:,1], parEstData[:,2], "bo",
-                xlabel = String(labelX), ylabel = String(labelY))
-            end
-
-            function draw(widget)
-                ctx = Gtk.getgc(widget)
-                w = Gtk.width(widget)
-                h = Gtk.height(widget)
-                plot(ctx, w, h)
-            end
-
-            canvasEstPar.draw = draw
-
-            # if statement needed to avoid "gtk_grid_attach: assertion
-            # '_gtk_widget_get_parent (child) == NULL' failed"
-            if canvasStatus == 0
-                parEstFrame2Grid[1,1] = canvasEstPar
-            end
-            visible(canvasEstPar, true)
-            showall(canvasEstPar)
-        end
-
-        if plotStatus == 0
-            warn_dialog("No data available to plot", parEstWin)
-        end
+    function newplot(widget)
+        global parEstData
+        #random data to plot that gets shifted with every call
+        xvals[] = parEstData[:,1]
+        yvals[] = parEstData[:,2]
     end
 
-    parEstFit = Button("Fit")
+    function mydraw(widget)
+        ctx = Gtk.getgc(widget)
+        ENV["GKS_WSTYPE"] = "142"
+        ENV["GKSconid"] = @sprintf("%lu", UInt64(ctx.ptr))
+        GR.scatter( xvals[], yvals[], size=[540,440])
+    end
+    function on_button_clicked(w)
+        newplot(w)
+        ctx = Gtk.getgc(canvas)
+        draw(canvas)
+    end
+
+    function runme()
+        #put a canvas for the plot and a button
+        global canvas#, parEstFrame1Grid, parEstFrame2Grid
+        canvas = Canvas(540, 440)
+        parEstFrame2Grid[1,1] = canvas
+
+        canvas.draw = mydraw
+        newplot(canvas)
+        signal_connect(on_button_clicked, parEstFit, "clicked")
+        showall(parEstWin)
+    end
 
     ############################################################################
     # Datasheet Data
@@ -440,7 +450,7 @@ signal_connect(parEst, :clicked) do widget
     parEstWinModel = ScrolledWindow(parEstGridModel)
 
     # Table for data
-    parEstModelList = ListStore(Float64, Float64)
+    global parEstModelList = ListStore(String, Float64, Float64)
 
     # Visual table
     parEstModelView = TreeView(TreeModel(parEstModelList))
@@ -476,13 +486,31 @@ signal_connect(parEst, :clicked) do widget
     # ComboBox
     ############################################################################
     parEstComboBox = GtkComboBoxText()
-    choices = ["Select a model", "Bertalanffy", "Brody",
+    choices = ["Bertalanffy", "Brody",
                "Gompertz", "Logistic", "Richards", "Best model"]
     for choice in choices
         push!(parEstComboBox, choice)
     end
+
     # Lets set the active element to be "0"
-    set_gtk_property!(parEstComboBox, :active, 0)
+    set_gtk_property!(parEstComboBox, :active, -1)
+
+    signal_connect(parEstComboBox, :changed) do widget
+        # get the active index
+        idx = get_gtk_property(parEstComboBox, :active, Int)
+
+        if idx ==  2
+            parEstModel = DataFrames.DataFrame(Parameter = ["A","B","K"],
+                            Value = [0,0,0], Initial=[0,0,0])
+            # save to global data
+            push!(parEstModelList,
+            (parEstModel[1,1],parEstModel[1,2],parEstModel[1,3]))
+            push!(parEstModelList,
+            (parEstModel[2,1],parEstModel[2,2],parEstModel[2,3]))
+            push!(parEstModelList,
+            (parEstModel[3,1],parEstModel[3,2],parEstModel[3,3]))
+        end
+    end
 
     ############################################################################
     # element location on parEstWin
@@ -493,8 +521,7 @@ signal_connect(parEst, :clicked) do widget
     parEstWinGridM2[1,2] = parEstWinFrame4
 
     parEstFrame1Grid[1:2,1] = parEstLoad
-    parEstFrame1Grid[1,3] = parEstClearData
-    parEstFrame1Grid[2,3] = parEstPlot
+    parEstFrame1Grid[1:2,3] = parEstClearData
 
     parEstFrame3Grid[1:2,1] = parEstComboBox
     parEstFrame3Grid[1,3] = parEstInitial
@@ -557,15 +584,19 @@ signal_connect(about, :clicked) do widget
     end
 
     label1 = Label("Hola")
-    GAccessor.markup(label1, """<b>Dr. Kelvyn B. Sánchez Sánchez</b><i>\nInstituto Tecnológico de Celaya</i>\nkelvyn.baruc@gmail.com""")
+    GAccessor.markup(label1,
+    """<b>Dr. Kelvyn B. Sánchez Sánchez</b>
+<i>Instituto Tecnológico de Celaya</i>\nkelvyn.baruc@gmail.com""")
     GAccessor.justify(label1, Gtk.GConstants.GtkJustification.CENTER)
     label2 = Label("Hola")
-    GAccessor.markup(label2, """<b>Dr. Arturo Jimenez Gutierrez</b>\n<i>Instituto Tecnológico de Celaya</i>\narturo@iqcelaya.itc.mx""")
+    GAccessor.markup(label2,
+    """<b>Dr. Arturo Jimenez Gutierrez</b>
+<i>Instituto Tecnológico de Celaya</i>\narturo@iqcelaya.itc.mx""")
     GAccessor.justify(label2, Gtk.GConstants.GtkJustification.CENTER)
     label3 = Label("Hola")
     GAccessor.markup(label3, """Free available at GitHub:
-                         \n<a href=\"https://github.com/JuliaChem/SimBioReactor.jl"
-                          title=\"Clic to download\">https://github.com/JuliaChem/SimBioReactor.jl</a>""")
+    <a href=\"https://github.com/JuliaChem/SimBioReactor.jl"
+    title=\"Clic to download\">https://github.com/JuliaChem/SimBioReactor.jl</a>""")
     GAccessor.justify(label3, Gtk.GConstants.GtkJustification.CENTER)
 
     aboutGrid[1:3,1] = label1
