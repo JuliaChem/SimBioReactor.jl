@@ -1,5 +1,5 @@
-using Gtk, Gtk.ShortNames, GR, Printf, CSV
-import DefaultApplication, DataFrames
+using Gtk, Gtk.ShortNames, GR, Printf, CSV, LsqFit
+import DefaultApplication, DataFrames, Distributions
 
 # Environmental variable to allow Windows decorations
 ENV["GTK_CSD"] = 0
@@ -96,8 +96,6 @@ open = Button("Open simulation")
 ################################################################################
 # Action for button "Parameter Estimation"
 ################################################################################
-parEstModel = DataFrames.DataFrame()
-plotStatus = 0
 parEst = Button("Parameter estimation")
 signal_connect(parEst, :clicked) do widget
     global parEstWin = Window()
@@ -123,7 +121,6 @@ signal_connect(parEst, :clicked) do widget
     set_gtk_property!(parEstWinGrid0, :margin_bottom, 10)
     set_gtk_property!(parEstWinGrid0, :margin_left, 10)
     set_gtk_property!(parEstWinGrid0, :margin_right, 10)
-
 
     ############################################################################
     # Sub Grids
@@ -250,6 +247,7 @@ signal_connect(parEst, :clicked) do widget
 
             if isempty(dlg) == false
                 set_gtk_property!(parEstBrowseData, :label, "Browse ✔")
+                set_gtk_property!(parEstClearData, :sensitive, true)
             end
         end
 
@@ -257,7 +255,7 @@ signal_connect(parEst, :clicked) do widget
         parEstAdd2Data = Button("Add")
         signal_connect(parEstAdd2Data, :clicked) do widget
             global dlg, parEstData, parEstDataView, parEstDataList
-            global data, labelX, labelY
+            global data, labelX, labelY, parEstClearData
 
             labelX = get_gtk_property(parEstLabelX, :text, String)
             labelY = get_gtk_property(parEstLabelY, :text, String)
@@ -291,6 +289,7 @@ signal_connect(parEst, :clicked) do widget
             # Plot
             if plotStatus == 0
                 visible(parEstFrame2Grid, true)
+                global fitStatus = 0
                 runme()
                 global plotStatus = 1
             else
@@ -331,7 +330,7 @@ signal_connect(parEst, :clicked) do widget
     # Signal connect to clear de listdata
     parEstClearData = Button("Clear")
     signal_connect(parEstClearData, "clicked") do widget
-        global parEstWinFrameDatad
+        global parEstWinFrameData
 
         destroy(parEstWinFrameData) # Delete treeview to clear data table
 
@@ -360,6 +359,8 @@ signal_connect(parEst, :clicked) do widget
         showall(parEstWin)
 
         visible(parEstFrame2Grid, false)
+        set_gtk_property!(parEstLoad, :sensitive, true)
+        set_gtk_property!(parEstClearData, :sensitive, false)
     end
 
     parEstSave = Button("Save")
@@ -374,7 +375,36 @@ signal_connect(parEst, :clicked) do widget
 
     parEstClearModel = Button("Clear")
     signal_connect(parEstClearModel, :clicked) do widget
+        global parEstWinFrameModel
+
         Gtk.@sigatom set_gtk_property!(parEstComboBox, :active, -1)
+        set_gtk_property!(parEstInitial, :sensitive, false)
+
+        destroy(parEstWinFrameModel) # Delete treeview to clear data table
+
+        global parEstGridModel = Grid()
+        global parEstWinModel = ScrolledWindow(parEstGridModel)
+
+        # Redrawn TreeView after deletion of previous one.
+        # Table for data
+        global parEstModelList = ListStore(String, Float64, Float64)
+
+        # Visual table
+        global parEstModelView = TreeView(TreeModel(parEstModelList))
+        set_gtk_property!(parEstModelView, :reorderable, true)
+        set_gtk_property!(parEstModelView, :hover_selection, true)
+
+        # Set selectable
+        selmodel2 = G_.selection(parEstModelView)
+        set_gtk_property!(parEstModelView, :height_request, 340)
+
+        set_gtk_property!(parEstModelView, :enable_grid_lines, 3)
+        set_gtk_property!(parEstModelView, :expand, true)
+
+        parEstGridModel[1,1] = parEstModelView
+        push!(parEstWinFrameModel, parEstWinModel)
+        parEstFrame3Grid[1:2,2] = parEstWinFrameModel
+        showall(parEstWin)
     end
 
     parEstInitial = Button("Initial guess")
@@ -382,7 +412,132 @@ signal_connect(parEst, :clicked) do widget
     ############################################################################
     # Fit button
     ############################################################################
+    global fitStatus = 0
     parEstFit = Button("Fit")
+    signal_connect(parEstFit, :clicked) do widget
+        global p0, fit, yFit, squareR, SSE, idx, parEstData, parEstModel
+        global parEstModelList
+
+        xvals[] = parEstData[:,1]
+        yvals[] = parEstData[:,2]
+
+        #######################################################################
+        # Clear treeview model
+        global parEstWinFrameModel
+
+        destroy(parEstWinFrameModel) # Delete treeview to clear data table
+
+        global parEstGridModel = Grid()
+        global parEstWinModel = ScrolledWindow(parEstGridModel)
+
+        # Redrawn TreeView after deletion of previous one.
+        # Table for data
+        global parEstModelList = ListStore(String, Float64, Float64)
+
+        # Visual table
+        global parEstModelView = TreeView(TreeModel(parEstModelList))
+        set_gtk_property!(parEstModelView, :reorderable, true)
+        set_gtk_property!(parEstModelView, :hover_selection, true)
+
+        # Set selectable
+        selmodel2 = G_.selection(parEstModelView)
+        set_gtk_property!(parEstModelView, :height_request, 340)
+
+        set_gtk_property!(parEstModelView, :enable_grid_lines, 3)
+        set_gtk_property!(parEstModelView, :expand, true)
+
+        parEstGridModel[1,1] = parEstModelView
+        push!(parEstWinFrameModel, parEstWinModel)
+        parEstFrame3Grid[1:2,2] = parEstWinFrameModel
+
+        # Define type of cell
+        rTxt2 = CellRendererText()
+
+        # Define the source of data
+        c11 = TreeViewColumn("Parameter", rTxt2, Dict([("text", 0)]))
+        c12 = TreeViewColumn("Value", rTxt2, Dict([("text", 1)]))
+        c13 = TreeViewColumn("Initial guess", rTxt2, Dict([("text", 2)]))
+
+        # Allows to select rows
+        for c in [c11, c12, c13]
+            GAccessor.resizable(c, true)
+        end
+
+        push!(parEstModelView, c11, c12, c13)
+
+        ########################################################################
+        # Models
+        # Bertalanffy
+        if idx == 0
+            # Model definition
+            Bertalanffy(t, P) = P[1] .* (1 .- exp.(- P[2] .* (t .- P[3])))
+            # Initial values
+            p0 = [7000, 2.0, 5]
+
+            global fit = curve_fit(Bertalanffy, xvals[], yvals[], p0)
+            global yFit = Bertalanffy(xvals[], fit.param)
+        end
+
+        # Btody
+        if idx == 1
+            # Model definition
+            Brody(t, P) = P[1] .* (1 .- P[2] .* exp.(- P[3] .* t))
+            # Initial values
+            p0 = [80000, 2.0, 5]
+
+            global fit = curve_fit(Brody, xvals[], yvals[], p0)
+            global yFit = Brody(xvals[], fit.param)
+        end
+
+        # Gompertz
+        if idx == 2
+            # Model definition
+            Gompertz(t, p) = p[1]*exp.(-p[2]*exp.(-p[3]*t))
+
+            # Initial values
+            p0 = [31, 2, 0.5]
+
+            global fit = curve_fit(Gompertz, xvals[], yvals[], p0)
+            global yFit = Gompertz(xvals[], fit.param)
+        end
+
+        # Logistic
+        if idx == 3
+            # Model definition
+            Logistic(t, P) = P[1]./(1 .+ P[2] .* exp.(-P[3] .* t))
+
+            # Initial values
+            p0 = [31, 2, 0.5]
+
+            global fit = curve_fit(Logistic, xvals[], yvals[], p0)
+            global yFit = Logistic(xvals[], fit.param)
+        end
+
+        if idx == 4
+
+        end
+
+        global SSE = sum(fit.resid.^2)
+        global squareR = 1-SSE/sum((yvals[] .- Distributions.mean(yvals[])).^2)
+
+        # save data to dataframe
+        for i=1:size(parEstModel,1)
+            global parEstModel.Value[i] = fit.param[i]
+        end
+
+        push!(parEstModel, ("SSE", SSE, 0.0))
+        push!(parEstModel, ("R^2", squareR, 0.0))
+
+        # Show in treeview
+        for i=1:size(parEstModel,1)
+            # save to global data
+            push!(parEstModelList,
+            (parEstModel[i,1],parEstModel[i,2],parEstModel[i,3]))
+        end
+
+        global fitStatus = 1
+        runme()
+    end
 
     ############################################################################
     # Plot
@@ -395,10 +550,21 @@ signal_connect(parEst, :clicked) do widget
     end
 
     function mydraw(widget)
+        global fitStatus, yFit, labelX, labelY
         ctx = Gtk.getgc(widget)
         ENV["GKS_WSTYPE"] = "142"
         ENV["GKSconid"] = @sprintf("%lu", UInt64(ctx.ptr))
-        GR.scatter( xvals[], yvals[], size=[540,440])
+
+        if fitStatus == 0
+            GR.plot(xvals[], yvals[], size=[540,440],"bo",
+                xlabel = String(labelX), ylabel = String(labelY))
+        end
+
+        if fitStatus == 1
+            GR.plot(xvals[], yvals[], size=[540,440],"bo")
+            GR.oplot(xvals[], yFit, size=[540,440],
+            xlabel = String(labelX), ylabel = String(labelY))
+        end
     end
     function on_button_clicked(w)
         newplot(w)
@@ -446,14 +612,14 @@ signal_connect(parEst, :clicked) do widget
     ############################################################################
     # Datasheet Model
     ############################################################################
-    parEstGridModel = Grid()
-    parEstWinModel = ScrolledWindow(parEstGridModel)
+    global parEstGridModel = Grid()
+    global parEstWinModel = ScrolledWindow(parEstGridModel)
 
     # Table for data
     global parEstModelList = ListStore(String, Float64, Float64)
 
     # Visual table
-    parEstModelView = TreeView(TreeModel(parEstModelList))
+    global parEstModelView = TreeView(TreeModel(parEstModelList))
     set_gtk_property!(parEstModelView, :reorderable, true)
     set_gtk_property!(parEstModelView, :hover_selection, true)
 
@@ -461,22 +627,8 @@ signal_connect(parEst, :clicked) do widget
     selmodel2 = G_.selection(parEstModelView)
     set_gtk_property!(parEstModelView, :height_request, 340)
 
-    # Define type of cell
-    rTxt2 = CellRendererText()
-
-    # Define the source of data
-    c11 = TreeViewColumn("Parameter", rTxt2, Dict([("text", 0)]))
-    c12 = TreeViewColumn("Value", rTxt2, Dict([("text", 1)]))
-    c13 = TreeViewColumn("Initial guess", rTxt2, Dict([("text", 2)]))
-
-    # Allows to select rows
-    for c in [c11, c12, c13]
-        GAccessor.resizable(c, true)
-    end
     set_gtk_property!(parEstModelView, :enable_grid_lines, 3)
     set_gtk_property!(parEstModelView, :expand, true)
-
-    push!(parEstModelView, c11, c12, c13)
 
     parEstGridModel[1,1] = parEstModelView
     push!(parEstWinFrameModel, parEstWinModel)
@@ -487,7 +639,7 @@ signal_connect(parEst, :clicked) do widget
     ############################################################################
     parEstComboBox = GtkComboBoxText()
     choices = ["Bertalanffy", "Brody",
-               "Gompertz", "Logistic", "Richards", "Best model"]
+               "Gompertz", "Logistic", "Best model"]
     for choice in choices
         push!(parEstComboBox, choice)
     end
@@ -496,12 +648,55 @@ signal_connect(parEst, :clicked) do widget
     set_gtk_property!(parEstComboBox, :active, -1)
 
     signal_connect(parEstComboBox, :changed) do widget
-        # get the active index
-        idx = get_gtk_property(parEstComboBox, :active, Int)
+        global parEstWinFrameModel
 
-        if idx ==  2
-            parEstModel = DataFrames.DataFrame(Parameter = ["A","B","K"],
-                            Value = [0,0,0], Initial=[0,0,0])
+        destroy(parEstWinFrameModel) # Delete treeview to clear data table
+
+        global parEstGridModel = Grid()
+        global parEstWinModel = ScrolledWindow(parEstGridModel)
+
+        # Redrawn TreeView after deletion of previous one.
+        # Table for data
+        global parEstModelList = ListStore(String, Float64, Float64)
+
+        # Visual table
+        global parEstModelView = TreeView(TreeModel(parEstModelList))
+        set_gtk_property!(parEstModelView, :reorderable, true)
+        set_gtk_property!(parEstModelView, :hover_selection, true)
+
+        # Set selectable
+        selmodel2 = G_.selection(parEstModelView)
+        set_gtk_property!(parEstModelView, :height_request, 340)
+
+        set_gtk_property!(parEstModelView, :enable_grid_lines, 3)
+        set_gtk_property!(parEstModelView, :expand, true)
+
+        parEstGridModel[1,1] = parEstModelView
+        push!(parEstWinFrameModel, parEstWinModel)
+        parEstFrame3Grid[1:2,2] = parEstWinFrameModel
+
+        # Define type of cell
+        rTxt2 = CellRendererText()
+
+        # Define the source of data
+        c11 = TreeViewColumn("Parameter", rTxt2, Dict([("text", 0)]))
+        c12 = TreeViewColumn("Value", rTxt2, Dict([("text", 1)]))
+        c13 = TreeViewColumn("Initial guess", rTxt2, Dict([("text", 2)]))
+
+        # Allows to select rows
+        for c in [c11, c12, c13]
+            GAccessor.resizable(c, true)
+        end
+
+        push!(parEstModelView, c11, c12, c13)
+
+        # get the active index
+        global idx = get_gtk_property(parEstComboBox, :active, Int)
+
+        # Bertalanffy
+        if idx ==  0
+            global parEstModel = DataFrames.DataFrame(Parameter = ["A","K","t0"],
+                            Value = [0.0,0.0,0.0], Initial=[0.0,0.0,0.0])
             # save to global data
             push!(parEstModelList,
             (parEstModel[1,1],parEstModel[1,2],parEstModel[1,3]))
@@ -510,6 +705,55 @@ signal_connect(parEst, :clicked) do widget
             push!(parEstModelList,
             (parEstModel[3,1],parEstModel[3,2],parEstModel[3,3]))
         end
+
+        # Brody
+        if idx ==  1
+            global parEstModel = DataFrames.DataFrame(Parameter = ["A","B","K"],
+                            Value = [0.0,0.0,0.0], Initial=[0.0,0.0,0.0])
+            # save to global data
+            push!(parEstModelList,
+            (parEstModel[1,1],parEstModel[1,2],parEstModel[1,3]))
+            push!(parEstModelList,
+            (parEstModel[2,1],parEstModel[2,2],parEstModel[2,3]))
+            push!(parEstModelList,
+            (parEstModel[3,1],parEstModel[3,2],parEstModel[3,3]))
+        end
+
+        # Gompertz
+        if idx ==  2
+            parEstModel = DataFrames.DataFrame(Parameter = ["A","B","K"],
+                            Value = [0.0,0.0,.0], Initial=[0.0,0.0,0.0])
+            # save to global data
+            push!(parEstModelList,
+            (parEstModel[1,1],parEstModel[1,2],parEstModel[1,3]))
+            push!(parEstModelList,
+            (parEstModel[2,1],parEstModel[2,2],parEstModel[2,3]))
+            push!(parEstModelList,
+            (parEstModel[3,1],parEstModel[3,2],parEstModel[3,3]))
+        end
+
+        # Logistic
+        if idx ==  3
+            parEstModel = DataFrames.DataFrame(Parameter = ["A","B","K"],
+                            Value = [0.0,0.0,0.0], Initial=[0.0,0.0,0.0])
+            # save to global data
+            push!(parEstModelList,
+            (parEstModel[1,1],parEstModel[1,2],parEstModel[1,3]))
+            push!(parEstModelList,
+            (parEstModel[2,1],parEstModel[2,2],parEstModel[2,3]))
+            push!(parEstModelList,
+            (parEstModel[3,1],parEstModel[3,2],parEstModel[3,3]))
+        end
+
+        # Best model
+        if idx ==  4
+
+        end
+
+        set_gtk_property!(parEstClearModel, :sensitive, true)
+        set_gtk_property!(parEstInitial, :sensitive, true)
+        set_gtk_property!(parEstFit, :sensitive, true)
+        showall(parEstWin)
     end
 
     ############################################################################
@@ -544,6 +788,17 @@ signal_connect(parEst, :clicked) do widget
     push!(parEstWinFrame4, parEstFrame4Grid)
 
     push!(parEstWin, parEstWinGrid0)
+
+    # Initial sensitive status
+    set_gtk_property!(parEstFit, :sensitive, false)
+    set_gtk_property!(parEstReport, :sensitive, false)
+    set_gtk_property!(parEstSave, :sensitive, false)
+    set_gtk_property!(parEstClearPlot, :sensitive, false)
+    set_gtk_property!(parEstInitial, :sensitive, false)
+    set_gtk_property!(parEstExport, :sensitive, false)
+    set_gtk_property!(parEstClearData, :sensitive, false)
+    set_gtk_property!(parEstClearModel, :sensitive, false)
+
     showall(parEstWin)
 end
 
