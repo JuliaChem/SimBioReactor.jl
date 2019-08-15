@@ -2,8 +2,8 @@ using Mustache, Gtk
 import DefaultApplication
 
 students = [
-  Dict( "name" => "John", "surname" => "Smith", "marks" => [25, 32, 40, 38] ),
-  Dict( "name" => "Elisa", "surname" => "White", "marks" => [40, 40, 36, 35] )
+  Dict( "name" => "John", "surname" => "Smith", "marks" => [25, 32, 40, 38] , "marks2" => [125, 132, 140, 138]),
+  Dict( "name" => "Elisa", "surname" => "White", "marks" => [40, 40, 36, 35], "marks2" => [125, 132, 140, 138])
 ]
 
 tmpl = """
@@ -14,7 +14,7 @@ tmpl = """
 Hello \\textbf{ {{name}}, {{surname}} }. Your marks are:
 \\begin{itemize}
   {{#marks}}
-    \\item Mark for question is {{.}}
+    \\item Mark {{.}} for question is {{.}}
   {{/marks}}
 \\end{itemize}
 \\end{document}

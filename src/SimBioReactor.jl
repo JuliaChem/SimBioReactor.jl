@@ -1,5 +1,5 @@
-using Gtk, Gtk.ShortNames, GR, Printf, CSV, LsqFit
-import DefaultApplication, DataFrames, Distributions
+using Gtk, Gtk.ShortNames, GR, Printf, CSV, LsqFit, Distributions, Mustache
+import DefaultApplication, DataFrames
 
 # Environmental variable to allow Windows decorations
 ENV["GTK_CSD"] = 0
@@ -361,16 +361,16 @@ signal_connect(parEst, :clicked) do widget
         visible(parEstFrame2Grid, false)
         set_gtk_property!(parEstLoad, :sensitive, true)
         set_gtk_property!(parEstClearData, :sensitive, false)
+        set_gtk_property!(parEstReport, :sensitive, false)
     end
 
-    parEstSave = Button("Save")
     parEstReport = Button("Report")
+    
     parEstExport = Button("Export")
 
     # Signal connect to clear plot
     parEstClearPlot = Button("Clear all")
     signal_connect(parEstClearPlot, :clicked) do widget
-        shwowall(parEstWin)
     end
 
     parEstClearModel = Button("Clear")
@@ -404,7 +404,9 @@ signal_connect(parEst, :clicked) do widget
         parEstGridModel[1,1] = parEstModelView
         push!(parEstWinFrameModel, parEstWinModel)
         parEstFrame3Grid[1:2,2] = parEstWinFrameModel
+        set_gtk_property!(parEstReport, :sensitive, false)
         showall(parEstWin)
+        visible(parEstFrame2Grid, false)
     end
 
     parEstInitial = Button("Initial guess")
@@ -421,8 +423,9 @@ signal_connect(parEst, :clicked) do widget
         xvals[] = parEstData[:,1]
         yvals[] = parEstData[:,2]
 
-        #######################################################################
+        ########################################################################
         # Clear treeview model
+        ########################################################################
         global parEstWinFrameModel
 
         destroy(parEstWinFrameModel) # Delete treeview to clear data table
@@ -467,6 +470,7 @@ signal_connect(parEst, :clicked) do widget
 
         ########################################################################
         # Models
+        ########################################################################
         # Bertalanffy
         if idx == 0
             # Model definition
@@ -517,8 +521,11 @@ signal_connect(parEst, :clicked) do widget
 
         end
 
+        ########################################################################
+        # Save data to treeview Model
+        ########################################################################
         global SSE = sum(fit.resid.^2)
-        global squareR = 1-SSE/sum((yvals[] .- Distributions.mean(yvals[])).^2)
+        global squareR = 1-SSE/sum((yvals[] .- mean(yvals[])).^2)
 
         # save data to dataframe
         for i=1:size(parEstModel,1)
@@ -535,6 +542,7 @@ signal_connect(parEst, :clicked) do widget
             (parEstModel[i,1],parEstModel[i,2],parEstModel[i,3]))
         end
 
+        set_gtk_property!(parEstReport, :sensitive, true)
         global fitStatus = 1
         runme()
     end
@@ -556,7 +564,7 @@ signal_connect(parEst, :clicked) do widget
         ENV["GKSconid"] = @sprintf("%lu", UInt64(ctx.ptr))
 
         if fitStatus == 0
-            GR.plot(xvals[], yvals[], size=[540,440],"bo",
+            plot(xvals[], yvals[], size=[540,440],"bo",
                 xlabel = String(labelX), ylabel = String(labelY))
         end
 
@@ -564,6 +572,7 @@ signal_connect(parEst, :clicked) do widget
             GR.plot(xvals[], yvals[], size=[540,440],"bo")
             GR.oplot(xvals[], yFit, size=[540,440],
             xlabel = String(labelX), ylabel = String(labelY))
+            #title="\$Histogram : \\sigma = \\sqrt {\\mu_2 }\$")
         end
     end
     function on_button_clicked(w)
@@ -648,6 +657,9 @@ signal_connect(parEst, :clicked) do widget
     set_gtk_property!(parEstComboBox, :active, -1)
 
     signal_connect(parEstComboBox, :changed) do widget
+        ########################################################################
+        # Clear treeview
+        ########################################################################
         global parEstWinFrameModel
 
         destroy(parEstWinFrameModel) # Delete treeview to clear data table
@@ -692,62 +704,45 @@ signal_connect(parEst, :clicked) do widget
 
         # get the active index
         global idx = get_gtk_property(parEstComboBox, :active, Int)
+        set_gtk_property!(parEstReport, :sensitive, false)
 
+        ########################################################################
+        # Initial push! to treeview model
+        ########################################################################
         # Bertalanffy
         if idx ==  0
             global parEstModel = DataFrames.DataFrame(Parameter = ["A","K","t0"],
                             Value = [0.0,0.0,0.0], Initial=[0.0,0.0,0.0])
-            # save to global data
-            push!(parEstModelList,
-            (parEstModel[1,1],parEstModel[1,2],parEstModel[1,3]))
-            push!(parEstModelList,
-            (parEstModel[2,1],parEstModel[2,2],parEstModel[2,3]))
-            push!(parEstModelList,
-            (parEstModel[3,1],parEstModel[3,2],parEstModel[3,3]))
         end
 
         # Brody
         if idx ==  1
             global parEstModel = DataFrames.DataFrame(Parameter = ["A","B","K"],
                             Value = [0.0,0.0,0.0], Initial=[0.0,0.0,0.0])
-            # save to global data
-            push!(parEstModelList,
-            (parEstModel[1,1],parEstModel[1,2],parEstModel[1,3]))
-            push!(parEstModelList,
-            (parEstModel[2,1],parEstModel[2,2],parEstModel[2,3]))
-            push!(parEstModelList,
-            (parEstModel[3,1],parEstModel[3,2],parEstModel[3,3]))
         end
 
         # Gompertz
         if idx ==  2
             parEstModel = DataFrames.DataFrame(Parameter = ["A","B","K"],
                             Value = [0.0,0.0,.0], Initial=[0.0,0.0,0.0])
-            # save to global data
-            push!(parEstModelList,
-            (parEstModel[1,1],parEstModel[1,2],parEstModel[1,3]))
-            push!(parEstModelList,
-            (parEstModel[2,1],parEstModel[2,2],parEstModel[2,3]))
-            push!(parEstModelList,
-            (parEstModel[3,1],parEstModel[3,2],parEstModel[3,3]))
         end
 
         # Logistic
         if idx ==  3
             parEstModel = DataFrames.DataFrame(Parameter = ["A","B","K"],
                             Value = [0.0,0.0,0.0], Initial=[0.0,0.0,0.0])
-            # save to global data
-            push!(parEstModelList,
-            (parEstModel[1,1],parEstModel[1,2],parEstModel[1,3]))
-            push!(parEstModelList,
-            (parEstModel[2,1],parEstModel[2,2],parEstModel[2,3]))
-            push!(parEstModelList,
-            (parEstModel[3,1],parEstModel[3,2],parEstModel[3,3]))
         end
 
         # Best model
         if idx ==  4
 
+        end
+
+        # push! in treeview
+        for i=1:size(parEstModel,1)
+            # save to global data
+            push!(parEstModelList,
+            (parEstModel[i,1],parEstModel[i,2],parEstModel[i,3]))
         end
 
         set_gtk_property!(parEstClearModel, :sensitive, true)
@@ -776,8 +771,7 @@ signal_connect(parEst, :clicked) do widget
     parEstFrame4Grid[2,1] = parEstExport
     parEstFrame4Grid[1,2] = parEstReport
     parEstFrame4Grid[2,2] = parEstClose
-    parEstFrame4Grid[1,3] = parEstSave
-    parEstFrame4Grid[2,3] = parEstExit
+    parEstFrame4Grid[1:2,3] = parEstExit
 
     parEstWinGrid0[1,1] = parEstWinGridM1
     parEstWinGrid0[2,1] = parEstWinGridM2
@@ -792,7 +786,6 @@ signal_connect(parEst, :clicked) do widget
     # Initial sensitive status
     set_gtk_property!(parEstFit, :sensitive, false)
     set_gtk_property!(parEstReport, :sensitive, false)
-    set_gtk_property!(parEstSave, :sensitive, false)
     set_gtk_property!(parEstClearPlot, :sensitive, false)
     set_gtk_property!(parEstInitial, :sensitive, false)
     set_gtk_property!(parEstExport, :sensitive, false)
