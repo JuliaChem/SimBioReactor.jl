@@ -4,7 +4,6 @@ Distributions
 LsqFit
 DataFrames
 GR
-Printf
 CSV
 Mustache
 DefaultApplication
