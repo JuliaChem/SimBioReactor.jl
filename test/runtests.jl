@@ -1,5 +1,6 @@
 using SimBioReactor
-using Base.Test
+using Test
+using Gtk
 
 @testset "mainGUI" begin
     w =SimBioReactorGUI()
