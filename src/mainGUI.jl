@@ -15,9 +15,9 @@ function SimBioReactorGUI()
 
     # Create window
     mainWin = Window()
-    #sc = Gtk.GAccessor.style_context(mainWin)
-    #pr = CssProviderLeaf(data="* {background:white;}")
-    #push!(sc, StyleProvider(pr), 600)
+    # sc = Gtk.GAccessor.style_context(mainWin)
+    # pr = CssProviderLeaf(data="* {background:white;}")
+    # push!(sc, StyleProvider(pr), 600)
 
     # Properties for mainWin
     set_gtk_property!(mainWin, :title, "SimBioReactor 1.0")
@@ -37,68 +37,258 @@ function SimBioReactorGUI()
     set_gtk_property!(mainGrid, :column_homogeneous, true)
     set_gtk_property!(mainGrid, :row_homogeneous, true)
 
-    ################################################################################
+    ############################################################################
     # Main buttons
-    ################################################################################
+    ############################################################################
     # Action for button "New simulation"
+    # TODO Simulation
     new = Button("New simulation")
     signal_connect(new, :clicked) do widget
-        newWin = Window()
+        global newSim = Window()
+        set_gtk_property!(newSim, :visible, true)
+        set_gtk_property!(newSim,
+            :title, "New simulation - SimBioReactor 1.0")
+        set_gtk_property!(newSim, :window_position, 3)
+        set_gtk_property!(newSim, :height_request, 600)
+        set_gtk_property!(newSim, :width_request, 900)
+        set_gtk_property!(newSim, :accept_focus, true)
 
-        set_gtk_property!(newWin, :visible, true)
-        set_gtk_property!(newWin,:title,"Blank simulation - SimBioReactor 1.0")
-        set_gtk_property!(newWin, :window_position, 3)
-        set_gtk_property!(newWin, :height_request, 600)
-        set_gtk_property!(newWin, :width_request, 900)
-        set_gtk_property!(newWin, :accept_focus, true)
 
-        newWinGrid = Grid()
-        set_gtk_property!(newWinGrid, :column_spacing, 10)
-        set_gtk_property!(newWinGrid, :row_spacing, 10)
-        set_gtk_property!(newWinGrid, :margin_top, 15)
-        set_gtk_property!(newWinGrid, :margin_bottom, 15)
-        set_gtk_property!(newWinGrid, :margin_left, 15)
-        set_gtk_property!(newWinGrid, :margin_right, 15)
-        set_gtk_property!(newWinGrid, :column_homogeneous, true)
-        set_gtk_property!(newWinGrid, :row_homogeneous, false)
+        # Background color
+        # sc_newSim = Gtk.GAccessor.style_context(newSim)
+        # pr_newSim = CssProviderLeaf(data="* {background:white;}")
+        # push!(sc_newSim, StyleProvider(pr_newSim), 600)
 
-        newWinFrame = Frame()
-        set_gtk_property!(newWinFrame, :width_request, 870)
-        set_gtk_property!(newWinFrame, :height_request, 580)
+        # Main grid
+        newSimWinGrid0 = Grid()
+        set_gtk_property!(newSimWinGrid0, :column_homogeneous, false)
+        set_gtk_property!(newSimWinGrid0, :row_homogeneous, false)
+        set_gtk_property!(newSimWinGrid0, :column_spacing, 10)
+        set_gtk_property!(newSimWinGrid0, :row_spacing, 10)
+        set_gtk_property!(newSimWinGrid0, :margin_top, 10)
+        set_gtk_property!(newSimWinGrid0, :margin_bottom, 10)
+        set_gtk_property!(newSimWinGrid0, :margin_left, 10)
+        set_gtk_property!(newSimWinGrid0, :margin_right, 10)
 
-        # Action for button "newExit"
-        newExit = Button("Exit")
-        signal_connect(newExit, :clicked) do widget
-            destroy(newWin)
+        ########################################################################
+        # Sub Grids
+        ########################################################################
+        global newSimWinGridM1 = Grid()
+        set_gtk_property!(newSimWinGridM1, :column_homogeneous, false)
+        set_gtk_property!(newSimWinGridM1, :row_homogeneous, false)
+        set_gtk_property!(newSimWinGridM1, :row_spacing, 10)
+
+        global newSimWinGridM2 = Grid()
+        set_gtk_property!(newSimWinGridM2, :column_homogeneous, false)
+        set_gtk_property!(newSimWinGridM2, :row_homogeneous, false)
+        set_gtk_property!(newSimWinGridM2, :row_spacing, 10)
+
+        ########################################################################
+        # Frame Grids
+        ########################################################################
+        global newSimFrame1Grid = Grid()
+        set_gtk_property!(newSimFrame1Grid, :column_homogeneous, true)
+        set_gtk_property!(newSimFrame1Grid, :row_homogeneous, false)
+        set_gtk_property!(newSimFrame1Grid, :row_spacing, 10)
+        set_gtk_property!(newSimFrame1Grid, :column_spacing, 10)
+        set_gtk_property!(newSimFrame1Grid, :margin_top, 10)
+        set_gtk_property!(newSimFrame1Grid, :margin_bottom, 10)
+        set_gtk_property!(newSimFrame1Grid, :margin_left, 10)
+        set_gtk_property!(newSimFrame1Grid, :margin_right, 10)
+
+        global newSimFrame2Grid = Grid()
+        set_gtk_property!(newSimFrame2Grid, :row_homogeneous, false)
+        set_gtk_property!(newSimFrame2Grid, :row_spacing, 10)
+        set_gtk_property!(newSimFrame2Grid, :column_spacing, 10)
+        set_gtk_property!(newSimFrame2Grid, :margin_top, 10)
+        set_gtk_property!(newSimFrame2Grid, :margin_bottom, 10)
+        set_gtk_property!(newSimFrame2Grid, :margin_left, 10)
+        set_gtk_property!(newSimFrame2Grid, :margin_right, 10)
+
+        global newSimFrame3Grid = Grid()
+        set_gtk_property!(newSimFrame3Grid, :row_homogeneous, false)
+        set_gtk_property!(newSimFrame3Grid, :row_spacing, 10)
+        set_gtk_property!(newSimFrame3Grid, :column_spacing, 10)
+        set_gtk_property!(newSimFrame3Grid, :margin_top, 10)
+        set_gtk_property!(newSimFrame3Grid, :margin_bottom, 10)
+        set_gtk_property!(newSimFrame3Grid, :margin_left, 10)
+        set_gtk_property!(newSimFrame3Grid, :margin_right, 10)
+
+        global newSimFrame4Grid = Grid()
+        set_gtk_property!(newSimFrame4Grid, :row_homogeneous, false)
+        set_gtk_property!(newSimFrame4Grid, :row_spacing, 10)
+        set_gtk_property!(newSimFrame4Grid, :column_spacing, 10)
+        set_gtk_property!(newSimFrame4Grid, :margin_top, 10)
+        set_gtk_property!(newSimFrame4Grid, :margin_bottom, 10)
+        set_gtk_property!(newSimFrame4Grid, :margin_left, 10)
+        set_gtk_property!(newSimFrame4Grid, :margin_right, 10)
+
+        global newSimFrame5Grid = Grid()
+        set_gtk_property!(newSimFrame5Grid, :column_homogeneous, true)
+        set_gtk_property!(newSimFrame5Grid, :row_homogeneous, false)
+        set_gtk_property!(newSimFrame5Grid, :row_spacing, 10)
+        set_gtk_property!(newSimFrame5Grid, :column_spacing, 10)
+        set_gtk_property!(newSimFrame5Grid, :margin_top, 10)
+        set_gtk_property!(newSimFrame5Grid, :margin_bottom, 10)
+        set_gtk_property!(newSimFrame5Grid, :margin_left, 10)
+        set_gtk_property!(newSimFrame5Grid, :margin_right, 10)
+
+        ########################################################################
+        # Frames
+        ########################################################################
+        global newSimWinFrame1 = Frame("Reactor type")
+        set_gtk_property!(newSimWinFrame1, :width_request, 400)
+        set_gtk_property!(newSimWinFrame1, :height_request, 50)
+        set_gtk_property!(newSimWinFrame1, :label_xalign, 0.50)
+
+        global newSimWinFrame2 = Frame("Input streams")
+        set_gtk_property!(newSimWinFrame2, :width_request, 400)
+        set_gtk_property!(newSimWinFrame2, :height_request, 170)
+        set_gtk_property!(newSimWinFrame2, :label_xalign, 0.50)
+
+        global newSimWinFrame3 = Frame("Kinetic parameters")
+        set_gtk_property!(newSimWinFrame3, :width_request, 400)
+        set_gtk_property!(newSimWinFrame3, :height_request, 170)
+        set_gtk_property!(newSimWinFrame3, :label_xalign, 0.50)
+
+        global newSimWinFrame4 = Frame("Reactor properties")
+        set_gtk_property!(newSimWinFrame4, :width_request, 400)
+        set_gtk_property!(newSimWinFrame4, :height_request, 170)
+        set_gtk_property!(newSimWinFrame4, :label_xalign, 0.50)
+
+        # Frame for input streams treeview
+        global newSimWinFrame5 = Frame()
+        set_gtk_property!(newSimWinFrame5, :width_request, 220)
+        set_gtk_property!(newSimWinFrame5, :height_request, 120)
+
+        # Frame for kinetic parameters treeview
+        global newSimWinFrame6 = Frame()
+        set_gtk_property!(newSimWinFrame6, :width_request, 220)
+        set_gtk_property!(newSimWinFrame6, :height_request, 120)
+
+        # Frame for reactor properties treeview
+        global newSimWinFrame7 = Frame()
+        set_gtk_property!(newSimWinFrame7, :width_request, 220)
+        set_gtk_property!(newSimWinFrame7, :height_request, 120)
+
+        # Frame for canvas graphics
+        global newSimWinFrame8 = Frame("Graphics")
+        set_gtk_property!(newSimWinFrame8, :width_request, 570)
+        set_gtk_property!(newSimWinFrame8, :height_request, 470)
+        set_gtk_property!(newSimWinFrame8, :label_xalign, 0.50)
+
+        # Frame for general buttons
+        global newSimWinFrame9 = Frame()
+        set_gtk_property!(newSimWinFrame9, :width_request, 400)
+        set_gtk_property!(newSimWinFrame9, :height_request, 150)
+
+        ########################################################################
+        # Buttons
+        ########################################################################
+        # TODO Report for Simulation Section
+        # Input streams
+        newSimInputAdd = Button("Add")
+        set_gtk_property!(newSimInputAdd, :width_request, 150)
+        newSimInputDelete = Button("Delete")
+        set_gtk_property!(newSimInputDelete, :width_request, 150)
+        newSimInputClear = Button("Clear")
+        set_gtk_property!(newSimInputClear, :width_request, 150)
+
+        # Kinetic parameters
+        newSimKPLoad = Button("Load")
+        set_gtk_property!(newSimKPLoad, :width_request, 150)
+        newSimKPEdit = Button("Edit")
+        set_gtk_property!(newSimKPEdit, :width_request, 150)
+        newSimKPClear = Button("Clear")
+        set_gtk_property!(newSimKPClear, :width_request, 150)
+
+        # Reactor properties
+        newSimRPAdd = Button("Add")
+        set_gtk_property!(newSimRPAdd, :width_request, 150)
+        newSimRPEdit = Button("Edit")
+        set_gtk_property!(newSimRPEdit, :width_request, 150)
+        newSimRPClear = Button("Clear")
+        set_gtk_property!(newSimRPClear, :width_request, 150)
+
+
+        # Signal connect for exit parameter estimation
+        newSimExit = Button("Exit")
+        signal_connect(newSimExit, :clicked) do widget
+            destroy(newSim)
             destroy(mainWin)
         end
 
-        newClose = Button("Close")
-        signal_connect(newClose, :clicked) do widget
-            destroy(newWin)
+        newSimClose = Button("Close")
+        signal_connect(newSimClose, :clicked) do widget
+            destroy(newSim)
         end
 
-        newSave = Button("Save")
-        newSaveAs = Button("Save as...")
+        newSimRun = Button("Run simulation")
 
-        newWinGrid[1:4, 1] = newWinFrame
-        newWinGrid[1, 2] = newSave
-        newWinGrid[2, 2] = newSaveAs
-        newWinGrid[3, 2] = newClose
-        newWinGrid[4, 2] = newExit
+        newSimReport = Button("Report")
 
-        push!(newWin, newWinGrid)
-        showall(newWin)
+        newSimExport = Button("Export")
+
+        # Signal connect to clear plot
+        newSimClearPlot = Button("Clear all")
+        signal_connect(newSimClearPlot, :clicked) do widget
+        end
+
+        ########################################################################
+        # Element location
+        ########################################################################
+
+        newSimWinGrid0[1,1] = newSimWinGridM1
+        newSimWinGrid0[2,1] = newSimWinGridM2
+
+        newSimWinGridM1[1,1] = newSimWinFrame1
+        newSimWinGridM1[1,2] = newSimWinFrame2
+        newSimWinGridM1[1,3] = newSimWinFrame3
+        newSimWinGridM1[1,4] = newSimWinFrame4
+        newSimWinGridM1[1,5] = newSimRun
+
+        newSimWinGridM2[1,1] = newSimWinFrame8
+        newSimWinGridM2[1,2] = newSimWinFrame9
+
+        newSimFrame2Grid[1,1:3] = newSimWinFrame5
+        newSimFrame2Grid[2,1] = newSimInputAdd
+        newSimFrame2Grid[2,2] = newSimInputDelete
+        newSimFrame2Grid[2,3] = newSimInputClear
+
+        newSimFrame3Grid[1,1:3] = newSimWinFrame6
+        newSimFrame3Grid[2,1] = newSimKPLoad
+        newSimFrame3Grid[2,2] = newSimKPEdit
+        newSimFrame3Grid[2,3] = newSimKPClear
+
+        newSimFrame4Grid[1,1:3] = newSimWinFrame7
+        newSimFrame4Grid[2,1] = newSimRPAdd
+        newSimFrame4Grid[2,2] = newSimRPEdit
+        newSimFrame4Grid[2,3] = newSimRPClear
+
+        newSimFrame5Grid[1, 1] = newSimClearPlot
+        newSimFrame5Grid[2, 1] = newSimExport
+        newSimFrame5Grid[1, 2] = newSimReport
+        newSimFrame5Grid[2, 2] = newSimClose
+        newSimFrame5Grid[1:2, 3] = newSimExit
+
+        push!(newSimWinFrame1, newSimFrame1Grid)
+        push!(newSimWinFrame2, newSimFrame2Grid)
+        push!(newSimWinFrame3, newSimFrame3Grid)
+        push!(newSimWinFrame4, newSimFrame4Grid)
+        push!(newSimWinFrame9, newSimFrame5Grid)
+
+        push!(newSim, newSimWinGrid0)
+        showall(newSim)
     end
 
-    ################################################################################
+    ############################################################################
     # Action for button "Open simulation"
-    ################################################################################
+    ############################################################################
     open = Button("Open simulation")
 
-    ################################################################################
+    ############################################################################
     # Action for button "Parameter Estimation"
-    ################################################################################
+    ############################################################################
     parEst = Button("Parameter estimation")
     signal_connect(parEst, :clicked) do widget
         global parEstWin = Window()
@@ -111,9 +301,9 @@ function SimBioReactorGUI()
         set_gtk_property!(parEstWin, :accept_focus, true)
 
         # Background color
-        #sc_estPar = Gtk.GAccessor.style_context(parEstWin)
-        #pr_estPar = CssProviderLeaf(data="* {background:white;}")
-        #push!(sc_estPar, StyleProvider(pr_estPar), 600)
+        # sc_estPar = Gtk.GAccessor.style_context(parEstWin)
+        # pr_estPar = CssProviderLeaf(data="* {background:white;}")
+        # push!(sc_estPar, StyleProvider(pr_estPar), 600)
 
         # Main grid
         parEstWinGrid0 = Grid()
@@ -126,9 +316,9 @@ function SimBioReactorGUI()
         set_gtk_property!(parEstWinGrid0, :margin_left, 10)
         set_gtk_property!(parEstWinGrid0, :margin_right, 10)
 
-        ############################################################################
+        ########################################################################
         # Sub Grids
-        ############################################################################
+        ########################################################################
         global parEstWinGridM1 = Grid()
         set_gtk_property!(parEstWinGridM1, :column_homogeneous, false)
         set_gtk_property!(parEstWinGridM1, :row_homogeneous, false)
@@ -139,9 +329,9 @@ function SimBioReactorGUI()
         set_gtk_property!(parEstWinGridM2, :row_homogeneous, false)
         set_gtk_property!(parEstWinGridM2, :row_spacing, 10)
 
-        ############################################################################
+        ########################################################################
         # Frame Grids
-        ############################################################################
+        ########################################################################
         global parEstFrame1Grid = Grid()
         set_gtk_property!(parEstFrame1Grid, :column_homogeneous, true)
         set_gtk_property!(parEstFrame1Grid, :row_homogeneous, false)
@@ -177,9 +367,9 @@ function SimBioReactorGUI()
         set_gtk_property!(parEstFrame4Grid, :margin_left, 10)
         set_gtk_property!(parEstFrame4Grid, :margin_right, 10)
 
-        ############################################################################
+        ########################################################################
         # Frames
-        ############################################################################
+        ########################################################################
         global parEstWinFrame1 = Frame("Load data")
         set_gtk_property!(parEstWinFrame1, :width_request, 400)
         set_gtk_property!(parEstWinFrame1, :height_request, 300)
@@ -200,12 +390,13 @@ function SimBioReactorGUI()
         set_gtk_property!(parEstWinFrame4, :height_request, 150)
 
         global parEstWinFrameData = Frame()
+
         global parEstWinFrameModel = Frame()
         set_gtk_property!(parEstWinFrameModel, :height_request, 150)
 
-        ############################################################################
+        ########################################################################
         # Buttons
-        ############################################################################
+        ########################################################################
         # Signal connect for load data
         parEstLoad = Button("Load")
 
@@ -376,6 +567,7 @@ function SimBioReactorGUI()
             set_gtk_property!(parEstReport, :sensitive, false)
         end
 
+        # TODO Report for Parameter Estimation
         parEstReport = Button("Report")
 
         parEstExport = Button("Export")
@@ -729,9 +921,9 @@ function SimBioReactorGUI()
             global idx = get_gtk_property(parEstComboBox, :active, Int)
             set_gtk_property!(parEstReport, :sensitive, false)
 
-            ########################################################################
+            ####################################################################
             # Initial push! to treeview model
-            ########################################################################
+            ####################################################################
             # Bertalanffy
             if idx == 0
                 global parEstModel = DataFrames.DataFrame(
@@ -796,8 +988,8 @@ function SimBioReactorGUI()
         parEstWinGridM2[1, 1] = parEstWinFrame2
         parEstWinGridM2[1, 2] = parEstWinFrame4
 
-        parEstFrame1Grid[1:2, 1] = parEstLoad
-        parEstFrame1Grid[1:2, 3] = parEstClearData
+        parEstFrame1Grid[1, 3] = parEstLoad
+        parEstFrame1Grid[2, 3] = parEstClearData
 
         parEstFrame3Grid[1:2, 1] = parEstComboBox
         parEstFrame3Grid[1, 3] = parEstInitial
