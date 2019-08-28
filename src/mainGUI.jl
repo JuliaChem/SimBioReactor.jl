@@ -1,5 +1,6 @@
 using Gtk, Gtk.ShortNames, GR, Printf, CSV, LsqFit, Distributions, Mustache
-import DefaultApplication, DataFrames
+import DataFrames
+import DefaultApplication, Dates
 
 # Constant variables for canvas
 const xvals = Ref(zeros(0))
@@ -88,13 +89,11 @@ function SimBioReactorGUI()
         ########################################################################
         global newSimFrame1Grid = Grid()
         set_gtk_property!(newSimFrame1Grid, :column_homogeneous, true)
-        set_gtk_property!(newSimFrame1Grid, :row_homogeneous, false)
-        set_gtk_property!(newSimFrame1Grid, :row_spacing, 10)
         set_gtk_property!(newSimFrame1Grid, :column_spacing, 10)
-        set_gtk_property!(newSimFrame1Grid, :margin_top, 10)
-        set_gtk_property!(newSimFrame1Grid, :margin_bottom, 10)
-        set_gtk_property!(newSimFrame1Grid, :margin_left, 10)
-        set_gtk_property!(newSimFrame1Grid, :margin_right, 10)
+        set_gtk_property!(newSimFrame1Grid, :margin_top, 5)
+        set_gtk_property!(newSimFrame1Grid, :margin_bottom, 12)
+        set_gtk_property!(newSimFrame1Grid, :margin_left, 40)
+        set_gtk_property!(newSimFrame1Grid, :margin_right, 0)
 
         global newSimFrame2Grid = Grid()
         set_gtk_property!(newSimFrame2Grid, :row_homogeneous, false)
@@ -125,7 +124,7 @@ function SimBioReactorGUI()
 
         global newSimFrame5Grid = Grid()
         set_gtk_property!(newSimFrame5Grid, :column_homogeneous, true)
-        set_gtk_property!(newSimFrame5Grid, :row_homogeneous, false)
+        set_gtk_property!(newSimFrame5Grid, :row_homogeneous, true)
         set_gtk_property!(newSimFrame5Grid, :row_spacing, 10)
         set_gtk_property!(newSimFrame5Grid, :column_spacing, 10)
         set_gtk_property!(newSimFrame5Grid, :margin_top, 10)
@@ -138,7 +137,7 @@ function SimBioReactorGUI()
         ########################################################################
         global newSimWinFrame1 = Frame("Reactor type")
         set_gtk_property!(newSimWinFrame1, :width_request, 400)
-        set_gtk_property!(newSimWinFrame1, :height_request, 50)
+        set_gtk_property!(newSimWinFrame1, :height_request, 54)
         set_gtk_property!(newSimWinFrame1, :label_xalign, 0.50)
 
         global newSimWinFrame2 = Frame("Input streams")
@@ -159,17 +158,17 @@ function SimBioReactorGUI()
         # Frame for input streams treeview
         global newSimWinFrame5 = Frame()
         set_gtk_property!(newSimWinFrame5, :width_request, 220)
-        set_gtk_property!(newSimWinFrame5, :height_request, 120)
+        set_gtk_property!(newSimWinFrame5, :height_request, 135)
 
         # Frame for kinetic parameters treeview
         global newSimWinFrame6 = Frame()
         set_gtk_property!(newSimWinFrame6, :width_request, 220)
-        set_gtk_property!(newSimWinFrame6, :height_request, 120)
+        set_gtk_property!(newSimWinFrame6, :height_request, 135)
 
         # Frame for reactor properties treeview
         global newSimWinFrame7 = Frame()
         set_gtk_property!(newSimWinFrame7, :width_request, 220)
-        set_gtk_property!(newSimWinFrame7, :height_request, 120)
+        set_gtk_property!(newSimWinFrame7, :height_request, 135)
 
         # Frame for canvas graphics
         global newSimWinFrame8 = Frame("Graphics")
@@ -181,6 +180,97 @@ function SimBioReactorGUI()
         global newSimWinFrame9 = Frame()
         set_gtk_property!(newSimWinFrame9, :width_request, 400)
         set_gtk_property!(newSimWinFrame9, :height_request, 150)
+
+        ########################################################################
+        # RadioButtons
+        ########################################################################
+        global newSimRadio = Vector{RadioButton}(undef, 2)
+        newSimRadio[1] = RadioButton("Batch")
+        newSimFrame1Grid[1,1] = newSimRadio[1]
+        newSimRadio[2] = RadioButton(newSimRadio[1], "Continuous")
+        newSimFrame1Grid[2,1] = newSimRadio[2]
+
+        signal_connect(newSimRadio[1], :clicked) do widget
+            newSimTRindex = get_gtk_property(newSimRadio[1],:active,Bool)
+
+            if newSimTRindex == false
+                set_gtk_property!(newSimInputAdd, :sensitive, false)
+            else
+                set_gtk_property!(newSimInputAdd, :sensitive, true)
+            end
+        end
+
+        ########################################################################
+        # Datasheet Input Streams
+        ########################################################################
+        global newSimIS = Grid()
+        global newSimISScroll = ScrolledWindow(newSimIS)
+
+        # Table for data
+        global newSimISList = ListStore(String, Float64)
+
+        # Visual table
+        global newSimISView = TreeView(TreeModel(newSimISList))
+        set_gtk_property!(newSimISView, :reorderable, true)
+        set_gtk_property!(newSimISView, :hover_selection, true)
+
+        # Set selectable
+        selmodelIS = G_.selection(newSimISView)
+        set_gtk_property!(newSimISView, :height_request, 340)
+
+        set_gtk_property!(newSimISView, :enable_grid_lines, 3)
+        set_gtk_property!(newSimISView, :expand, true)
+
+        newSimIS[1, 1] = newSimISView
+        push!(newSimWinFrame6, newSimISScroll)
+
+        ########################################################################
+        # Datasheet Kinetic Parameters
+        ########################################################################
+        global newSimRP = Grid()
+        global newSimRPScroll = ScrolledWindow(newSimRP)
+
+        # Table for data
+        global newSimRPList = ListStore(String, Float64)
+
+        # Visual table
+        global newSimRPView = TreeView(TreeModel(newSimRPList))
+        set_gtk_property!(newSimRPView, :reorderable, true)
+        set_gtk_property!(newSimRPView, :hover_selection, true)
+
+        # Set selectable
+        selmodelRP = G_.selection(newSimRPView)
+        set_gtk_property!(newSimRPView, :height_request, 340)
+
+        set_gtk_property!(newSimRPView, :enable_grid_lines, 3)
+        set_gtk_property!(newSimRPView, :expand, true)
+
+        newSimRP[1, 1] = newSimRPView
+        push!(newSimWinFrame7, newSimRPScroll)
+
+        ########################################################################
+        # Datasheet Kinetic Parameters
+        ########################################################################
+        global newSimKP = Grid()
+        global newSimKPScroll = ScrolledWindow(newSimKP)
+
+        # Table for data
+        global newSimKPList = ListStore(String, Float64)
+
+        # Visual table
+        global newSimKPView = TreeView(TreeModel(newSimKPList))
+        set_gtk_property!(newSimKPView, :reorderable, true)
+        set_gtk_property!(newSimKPView, :hover_selection, true)
+
+        # Set selectable
+        selmodelKP = G_.selection(newSimKPView)
+        set_gtk_property!(newSimKPView, :height_request, 340)
+
+        set_gtk_property!(newSimKPView, :enable_grid_lines, 3)
+        set_gtk_property!(newSimKPView, :expand, true)
+
+        newSimKP[1, 1] = newSimKPView
+        push!(newSimWinFrame5, newSimKPScroll)
 
         ########################################################################
         # Buttons
@@ -234,6 +324,18 @@ function SimBioReactorGUI()
         signal_connect(newSimClearPlot, :clicked) do widget
         end
 
+        # Initial state of buttons
+        set_gtk_property!(newSimRun, :sensitive, false)
+        set_gtk_property!(newSimReport, :sensitive, false)
+        set_gtk_property!(newSimExport, :sensitive, false)
+        set_gtk_property!(newSimClearPlot, :sensitive, false)
+        set_gtk_property!(newSimInputDelete, :sensitive, false)
+        set_gtk_property!(newSimInputClear, :sensitive, false)
+        set_gtk_property!(newSimKPEdit, :sensitive, false)
+        set_gtk_property!(newSimKPClear, :sensitive, false)
+        set_gtk_property!(newSimRPEdit, :sensitive, false)
+        set_gtk_property!(newSimRPClear, :sensitive, false)
+
         ########################################################################
         # Element location
         ########################################################################
@@ -245,7 +347,6 @@ function SimBioReactorGUI()
         newSimWinGridM1[1,2] = newSimWinFrame2
         newSimWinGridM1[1,3] = newSimWinFrame3
         newSimWinGridM1[1,4] = newSimWinFrame4
-        newSimWinGridM1[1,5] = newSimRun
 
         newSimWinGridM2[1,1] = newSimWinFrame8
         newSimWinGridM2[1,2] = newSimWinFrame9
@@ -265,11 +366,12 @@ function SimBioReactorGUI()
         newSimFrame4Grid[2,2] = newSimRPEdit
         newSimFrame4Grid[2,3] = newSimRPClear
 
-        newSimFrame5Grid[1, 1] = newSimClearPlot
+        newSimFrame5Grid[1, 1] = newSimRun
+        newSimFrame5Grid[1, 2] = newSimClearPlot
         newSimFrame5Grid[2, 1] = newSimExport
-        newSimFrame5Grid[1, 2] = newSimReport
-        newSimFrame5Grid[2, 2] = newSimClose
-        newSimFrame5Grid[1:2, 3] = newSimExit
+        newSimFrame5Grid[2, 2] = newSimReport
+        newSimFrame5Grid[1, 3] = newSimClose
+        newSimFrame5Grid[2, 3] = newSimExit
 
         push!(newSimWinFrame1, newSimFrame1Grid)
         push!(newSimWinFrame2, newSimFrame2Grid)
@@ -438,7 +540,7 @@ function SimBioReactorGUI()
             parEstBrowseData = Button("Browse")
             signal_connect(parEstBrowseData, :clicked) do widget
                 global dlg
-                dlg = open_dialog(
+                dlg = open_dialog_native(
                     "Choose file...",
                     parEstLoadWin,
                     ("*.txt, *.csv",),
@@ -569,6 +671,53 @@ function SimBioReactorGUI()
 
         # TODO Report for Parameter Estimation
         parEstReport = Button("Report")
+        signal_connect(parEstReport, :clicked) do widget
+            global parEstModel, modelName
+            #df = DataFrame(label=1:4, score=200:100:500, max=4:7)
+            fmt = string("|",repeat("c|", size(parEstModel,2)))
+            row = join(["{{:$x}}" for x in map(string, names(parEstModel))], " & ")
+            header = join(string.(names(parEstModel)), " & ")
+
+            timenow = Dates.now()
+            timenow1 = Dates.format(timenow, "dd u yyyy HH:MM:SS")
+
+            marks_tmpl = """
+            \\documentclass{article}
+            \\usepackage[letterpaper, portrait, margin=1in]{geometry}
+            \\begin{document}
+            \\begin{center}
+            \\Huge{\\textbf{SimBioReactor v1.0}}\\\\
+            \\vspace{2mm}
+            \\large{\\textbf{Parameter Estimation}}\\break
+            \\normalsize{{:time}}\n
+            \\vspace{5mm}
+            \\rule{15cm}{0.05cm}\n\n\n
+            \\normalsize{Table 1 presents the parameters estimated by using the {:modelName} algorithm.\n}
+            \\normalsize{Table 1. Results}\n
+              \\vspace{3mm}
+              \\begin{tabular}{$fmt}am
+              \\hline
+              $header\\\\
+              \\hline
+                {{#:DF}} $row\\cr
+                {{/:DF}}
+              \\hline\n
+              \\end{tabular}
+              \\vspace{3mm}\n
+            \\rule{15cm}{0.05cm}
+            \\end{center}
+            \\end{document}
+            """
+
+            rendered = render(marks_tmpl, time=timenow1, DF=parEstModel)
+
+            filename = string("C:\\Windows\\Temp\\","EstimationParameterReport.tex")
+            Base.open(filename, "w") do file
+              write(file, rendered)
+            end
+            run(`pdflatex $filename`)
+            DefaultApplication.open("EstimationParameterReport.pdf")
+        end
 
         parEstExport = Button("Export")
 
@@ -683,7 +832,7 @@ function SimBioReactorGUI()
                 Bertalanffy(t, P) = P[1] .* (1 .- exp.(-P[2] .* (t .- P[3])))
                 # Initial values
                 p0 = [7000, 2.0, 5]
-
+                global modelName = "Bertalanffy"
                 global fit = curve_fit(Bertalanffy, xvals[], yvals[], p0)
                 global yFit = Bertalanffy(xvals[], fit.param)
             end
@@ -694,7 +843,7 @@ function SimBioReactorGUI()
                 Brody(t, P) = P[1] .* (1 .- P[2] .* exp.(-P[3] .* t))
                 # Initial values
                 p0 = [80000, 2.0, 5]
-
+                global modelName = "Brody"
                 global fit = curve_fit(Brody, xvals[], yvals[], p0)
                 global yFit = Brody(xvals[], fit.param)
             end
@@ -706,7 +855,7 @@ function SimBioReactorGUI()
 
                 # Initial values
                 p0 = [31, 2, 0.5]
-
+                global modelName = "Gompertz"
                 global fit = curve_fit(Gompertz, xvals[], yvals[], p0)
                 global yFit = Gompertz(xvals[], fit.param)
             end
@@ -718,7 +867,7 @@ function SimBioReactorGUI()
 
                 # Initial values
                 p0 = [31, 2, 0.5]
-
+                global modelName = "Logistic"
                 global fit = curve_fit(Logistic, xvals[], yvals[], p0)
                 global yFit = Logistic(xvals[], fit.param)
             end
@@ -739,7 +888,7 @@ function SimBioReactorGUI()
             end
 
             push!(parEstModel, ("SSE", SSE, 0.0))
-            push!(parEstModel, ("R^2", squareR, 0.0))
+            push!(parEstModel, ("Corr", squareR, 0.0))
 
             # Show in treeview
             for i = 1:size(parEstModel, 1)
@@ -800,7 +949,8 @@ function SimBioReactorGUI()
         function runme()
             global canvas
             canvas = Canvas(540, 440)
-            parEstFrame2Grid[1, 1] = canvas
+
+            parEstFrame2Grid[1,1] = canvas
 
             canvas.draw = mydraw
             newplot(canvas)
@@ -1014,7 +1164,8 @@ function SimBioReactorGUI()
 
         # Initial sensitive status
         set_gtk_property!(parEstFit, :sensitive, false)
-        set_gtk_property!(parEstReport, :sensitive, false)
+        # TODO Sensitive Report
+        set_gtk_property!(parEstReport, :sensitive, true)
         set_gtk_property!(parEstClearPlot, :sensitive, false)
         set_gtk_property!(parEstInitial, :sensitive, false)
         set_gtk_property!(parEstExport, :sensitive, false)

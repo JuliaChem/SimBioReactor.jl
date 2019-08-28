@@ -1,37 +1,51 @@
-using DataFrames, Mustache, Dates
-import DefaultApplication
+using Gtk, Gtk.ShortNames, GR, Printf, CSV, LsqFit, Distributions, Mustache
+using DataFrames
+import DefaultApplication, Dates
 
-df = DataFrame(label=1:4, score=2:5, max=4:7)
 
-student = Dict( "name" => "John", "surname" => "Smith", "df" => df)
+df = DataFrame(label=1:4, score=200:100:500, max=4:7)
+fmt = string("|",repeat("c|", size(df,2)))
+header = join(string.(names(df)), " & ")
+row = join(["{{:$x}}" for x in map(string, names(df))], " & ")
 
 timenow = Dates.now()
-timenow1 = Dates.format(timenow, "e, dd u yyyy HH:MM:SS")
+timenow1 = Dates.format(timenow, "dd u yyyy HH:MM:SS")
+
 marks_tmpl = """
 \\documentclass{article}
+\\usepackage{graphicx}
+\\graphicspath{ {C:/Windows/Temp/} }
 \\usepackage[letterpaper, portrait, margin=1in]{geometry}
 \\begin{document}
 \\begin{center}
-\\huge{\\textbf{SimBioReactor v1.0}}\n\n
-\\rule{15cm}{0.05cm}\n\n\n
+\\huge{\\textbf{SimBioReactor v1.0}}\n
+\\vspace{3mm}
+\\normalsize{{:time}}
+\\vspace{3mm}
+\\rule{15cm}{0.04cm}\n\n\n
 \\normalsize{Your marks are:}\n
-  \\begin{tabular}{ |c|c|c| }
+  \\vspace{3mm}
+  \\begin{tabular}{$fmt}
     \\hline
-    cell1 & cell2 & cell3 \\cr
-    cell4 & cell5 & cell6 \\cr
-    cell7 & cell8 & cell9 \\cr
-    \\hline\n\n\n
+    $header\\\\
+    \\hline
+    {{#:DF}} $row\\cr
+    {{/:DF}}
+  \\hline\n
   \\end{tabular}
-\\rule{15cm}{0.05cm}
+  \\vspace{3mm}\n
+\\rule{15cm}{0.04cm}\n
+\\vspace{3mm}
+\\includegraphics[width=10cm, height=7cm]{Figure7}
 \\end{center}
 \\end{document}
 """
 
-rendered = render(marks_tmpl, student)
+rendered = render(marks_tmpl, TITLE = "Fitted parameters", time = timenow1, DF=df)
 
-filename = string("prueba.tex")
+filename = string("C:\\Windows\\Temp\\","EstimationParameterReport.tex")
 open(filename, "w") do file
   write(file, rendered)
 end
 run(`pdflatex $filename`)
-DefaultApplication.open("prueba.pdf")
+DefaultApplication.open("EstimationParameterReport.pdf")
