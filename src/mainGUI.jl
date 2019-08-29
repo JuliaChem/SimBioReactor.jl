@@ -1,6 +1,7 @@
 using Gtk, Gtk.ShortNames, GR, Printf, CSV, LsqFit, Distributions, Mustache
-import DataFrames
+import DataFrames, Plots
 import DefaultApplication, Dates
+Plots.pyplot()
 
 # Constant variables for canvas
 const xvals = Ref(zeros(0))
@@ -669,20 +670,35 @@ function SimBioReactorGUI()
             set_gtk_property!(parEstReport, :sensitive, false)
         end
 
-        # TODO Report for Parameter Estimation
+        # Report for Parameter Estimation
         parEstReport = Button("Report")
         signal_connect(parEstReport, :clicked) do widget
-            global parEstModel, modelName
+            global parEstModel, modelName, parEstData, fitStatus
+            global yFit, labelX, labelY
             #df = DataFrame(label=1:4, score=200:100:500, max=4:7)
             fmt = string("|",repeat("c|", size(parEstModel,2)))
             row = join(["{{:$x}}" for x in map(string, names(parEstModel))], " & ")
             header = join(string.(names(parEstModel)), " & ")
 
+            # Time for report
             timenow = Dates.now()
             timenow1 = Dates.format(timenow, "dd u yyyy HH:MM:SS")
 
+            # Plot using Plots and PyPlot Backend
+            xvals[] = parEstData[:, 1]
+            yvals[] = parEstData[:, 2]
+
+            global plt1 = Plots.scatter(xvals[], yvals[],
+            xlabel = labelX, ylabel = labelY, label = "Experimental Data")
+
+            Plots.plot!(xvals[],yFit, framestyle=:box, label = "Predicted Data")
+            Plots.savefig(plt1, string("C:\\Windows\\Temp\\","parEstFigReport.png"))
+
+
             marks_tmpl = """
             \\documentclass{article}
+            \\usepackage{graphicx}
+            \\graphicspath{ {C:/Windows/Temp/} }
             \\usepackage[letterpaper, portrait, margin=1in]{geometry}
             \\begin{document}
             \\begin{center}
@@ -692,10 +708,11 @@ function SimBioReactorGUI()
             \\normalsize{{:time}}\n
             \\vspace{5mm}
             \\rule{15cm}{0.05cm}\n\n\n
-            \\normalsize{Table 1 presents the parameters estimated by using the {:modelName} algorithm.\n}
-            \\normalsize{Table 1. Results}\n
+            \\normalsize{Table 1 presents the parameters estimated by using the {{:mN}} model. Figure 1 display the experimental data vs predicted data.}\n
+            \\vspace{2mm}
+            \\normalsize{Table 1}\n
               \\vspace{3mm}
-              \\begin{tabular}{$fmt}am
+              \\begin{tabular}{$fmt}
               \\hline
               $header\\\\
               \\hline
@@ -704,26 +721,115 @@ function SimBioReactorGUI()
               \\hline\n
               \\end{tabular}
               \\vspace{3mm}\n
-            \\rule{15cm}{0.05cm}
+            \\vspace{3mm}
+            \\includegraphics[width=10cm, height=7cm]{parEstFigReport}\n
+            \\normalsize{Figure 1}\n
+            \\vspace{3mm}\n
+            \\rule{15cm}{0.05cm}\n
             \\end{center}
             \\end{document}
             """
 
-            rendered = render(marks_tmpl, time=timenow1, DF=parEstModel)
+            rendered = render(marks_tmpl, time=timenow1, DF=parEstModel, mN = modelName)
 
             filename = string("C:\\Windows\\Temp\\","EstimationParameterReport.tex")
             Base.open(filename, "w") do file
               write(file, rendered)
             end
-            run(`pdflatex $filename`)
-            DefaultApplication.open("EstimationParameterReport.pdf")
+            run(`pdflatex -output-directory="C:\\Windows\\Temp\\" "EstimationParameterReport.tex"`)
+            DefaultApplication.open(string("C:\\Windows\\Temp\\","EstimationParameterReport.pdf"))
         end
 
         parEstExport = Button("Export")
+        signal_connect(parEstExport, :clicked) do widget
+            global yFit, labelX, labelY, parEstData, userPath
+            userPath = save_dialog_native("Save as...", Null(), ("*.png",))
+
+
+            if isempty(userPath) != true
+                # Plot using Plots and PyPlot Backend
+                xvals[] = parEstData[:, 1]
+                yvals[] = parEstData[:, 2]
+
+                plt2 = Plots.scatter(xvals[], yvals[],
+                xlabel = labelX, ylabel = labelY, label = "Experimental Data")
+                Plots.plot!(xvals[],yFit, framestyle=:box, label = "Predicted Data")
+                Plots.savefig(plt2, string(userPath,".png"))
+            end
+        end
 
         # Signal connect to clear plot
         parEstClearPlot = Button("Clear all")
         signal_connect(parEstClearPlot, :clicked) do widget
+            global parEstWinFrameData
+
+            # Delete treeview to clear data table
+            destroy(parEstWinFrameData)
+
+            global parEstGridData = Grid()
+            global parEstWinDataScroll = ScrolledWindow(parEstGridData)
+
+            # Redrawn TreeView after deletion of previous one.
+            # Table for data
+            global parEstDataList = ListStore(Float64, Float64)
+
+            # Visual table
+            global parEstDataView = TreeView(TreeModel(parEstDataList))
+            set_gtk_property!(parEstDataView, :reorderable, true)
+            set_gtk_property!(parEstDataView, :hover_selection, true)
+
+            # Set selectable
+            selmodel1 = G_.selection(parEstDataView)
+            set_gtk_property!(parEstDataView, :height_request, 340)
+
+            set_gtk_property!(parEstDataView, :enable_grid_lines, 3)
+            set_gtk_property!(parEstDataView, :expand, true)
+
+            parEstGridData[1, 1] = parEstDataView
+            push!(parEstWinFrameData, parEstWinDataScroll)
+            parEstFrame1Grid[1:2, 2] = parEstWinFrameData
+            showall(parEstWin)
+
+            visible(parEstFrame2Grid, false)
+            set_gtk_property!(parEstLoad, :sensitive, true)
+            set_gtk_property!(parEstClearData, :sensitive, false)
+            set_gtk_property!(parEstReport, :sensitive, false)
+            set_gtk_property!(parEstExport, :sensitive, false)
+            set_gtk_property!(parEstClearPlot, :sensitive, false)
+
+            global parEstWinFrameModel
+
+            Gtk.@sigatom set_gtk_property!(parEstComboBox, :active, -1)
+            set_gtk_property!(parEstInitial, :sensitive, false)
+            set_gtk_property!(parEstClearModel, :sensitive, false)
+
+            # Delete treeview to clear data table model
+            destroy(parEstWinFrameModel)
+
+            global parEstGridModel = Grid()
+            global parEstWinModel = ScrolledWindow(parEstGridModel)
+
+            # Redrawn TreeView after deletion of previous one.
+            # Table for data
+            global parEstModelList = ListStore(String, Float64, Float64)
+
+            # Visual table
+            global parEstModelView = TreeView(TreeModel(parEstModelList))
+            set_gtk_property!(parEstModelView, :reorderable, true)
+            set_gtk_property!(parEstModelView, :hover_selection, true)
+
+            # Set selectable
+            selmodel2 = G_.selection(parEstModelView)
+            set_gtk_property!(parEstModelView, :height_request, 340)
+
+            set_gtk_property!(parEstModelView, :enable_grid_lines, 3)
+            set_gtk_property!(parEstModelView, :expand, true)
+
+            parEstGridModel[1, 1] = parEstModelView
+            push!(parEstWinFrameModel, parEstWinModel)
+            parEstFrame3Grid[1:2, 2] = parEstWinFrameModel
+            showall(parEstWin)
+            visible(parEstFrame2Grid, false)
         end
 
         parEstClearModel = Button("Clear")
@@ -900,6 +1006,10 @@ function SimBioReactorGUI()
             set_gtk_property!(parEstReport, :sensitive, true)
             global fitStatus = 1
             runme()
+
+            set_gtk_property!(parEstClearPlot, :sensitive, true)
+            set_gtk_property!(parEstReport, :sensitive, true)
+            set_gtk_property!(parEstExport, :sensitive, true)
         end
 
         ########################################################################
@@ -1164,8 +1274,7 @@ function SimBioReactorGUI()
 
         # Initial sensitive status
         set_gtk_property!(parEstFit, :sensitive, false)
-        # TODO Sensitive Report
-        set_gtk_property!(parEstReport, :sensitive, true)
+        set_gtk_property!(parEstReport, :sensitive, false)
         set_gtk_property!(parEstClearPlot, :sensitive, false)
         set_gtk_property!(parEstInitial, :sensitive, false)
         set_gtk_property!(parEstExport, :sensitive, false)
