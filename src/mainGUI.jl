@@ -228,7 +228,7 @@ function SimBioReactorGUI()
         push!(newSimWinFrame6, newSimISScroll)
 
         ########################################################################
-        # Datasheet Kinetic Parameters
+        # Datasheet Reactor Properties
         ########################################################################
         global newSimRP = Grid()
         global newSimRPScroll = ScrolledWindow(newSimRP)
@@ -278,7 +278,6 @@ function SimBioReactorGUI()
         ########################################################################
         # Buttons
         ########################################################################
-        # TODO Report for Simulation Section
         # Input streams
         newSimInputAdd = Button("Add")
         set_gtk_property!(newSimInputAdd, :width_request, 150)
@@ -756,10 +755,9 @@ function SimBioReactorGUI()
                 # Visual table
                 global parEstModelView = TreeView(TreeModel(parEstModelList))
                 set_gtk_property!(parEstModelView, :reorderable, true)
-                set_gtk_property!(parEstModelView, :hover_selection, true)
 
                 # Set selectable
-                selmodel2 = G_.selection(parEstModelView)
+                parEstModelSel = G_.selection(parEstModelView)
                 set_gtk_property!(parEstModelView, :height_request, 340)
 
                 set_gtk_property!(parEstModelView, :enable_grid_lines, 3)
@@ -999,10 +997,9 @@ function SimBioReactorGUI()
                 # Visual table
                 global parEstModelView = TreeView(TreeModel(parEstModelList))
                 set_gtk_property!(parEstModelView, :reorderable, true)
-                set_gtk_property!(parEstModelView, :hover_selection, true)
 
                 # Set selectable
-                selmodel2 = G_.selection(parEstModelView)
+                parEstModelSel = G_.selection(parEstModelView)
                 set_gtk_property!(parEstModelView, :height_request, 340)
 
                 set_gtk_property!(parEstModelView, :enable_grid_lines, 3)
@@ -1035,10 +1032,9 @@ function SimBioReactorGUI()
                 # Visual table
                 global parEstModelView = TreeView(TreeModel(parEstModelList))
                 set_gtk_property!(parEstModelView, :reorderable, true)
-                set_gtk_property!(parEstModelView, :hover_selection, true)
 
                 # Set selectable
-                selmodel2 = G_.selection(parEstModelView)
+                parEstModelSel = G_.selection(parEstModelView)
                 set_gtk_property!(parEstModelView, :height_request, 340)
 
                 set_gtk_property!(parEstModelView, :enable_grid_lines, 3)
@@ -1053,6 +1049,99 @@ function SimBioReactorGUI()
             end
 
             parEstInitial = Button("Initial guess")
+            signal_connect(parEstInitial, :clicked) do widget
+                global parEstModelSel, parEstModelList
+
+                if hasselection(parEstModelSel)
+                    parEstInitialWin = Window()
+                    set_gtk_property!(parEstInitialWin, :title, "Initial guess")
+                    set_gtk_property!(parEstInitialWin, :window_position, 3)
+                    set_gtk_property!(parEstInitialWin, :width_request, 100)
+                    set_gtk_property!(parEstInitialWin, :height_request, 70)
+                    set_gtk_property!(parEstInitialWin, :accept_focus, true)
+
+                    parEstInitialWinGrid = Grid()
+                    set_gtk_property!(parEstInitialWinGrid, :margin_top, 25)
+                    set_gtk_property!(parEstInitialWinGrid, :margin_left, 10)
+                    set_gtk_property!(parEstInitialWinGrid, :margin_right, 10)
+                    set_gtk_property!(parEstInitialWinGrid, :margin_bottom, 10)
+                    set_gtk_property!(parEstInitialWinGrid, :column_spacing, 10)
+                    set_gtk_property!(parEstInitialWinGrid, :row_spacing, 10)
+                    set_gtk_property!(parEstInitialWinGrid, :column_homogeneous, true)
+
+                    parEstInitialEntry = Entry()
+                    set_gtk_property!(parEstInitialEntry, :tooltip_markup, "Enter value")
+                    set_gtk_property!(parEstInitialEntry, :width_request, 80)
+                    set_gtk_property!(parEstInitialEntry, :text, "")
+
+                    parEstInitialLabel = Label("")
+                    global parEstInitialIndex = Gtk.index_from_iter(parEstModelList,
+                                            selected(parEstModelSel))
+                    set_gtk_property!(
+                    parEstInitialLabel, :label,
+                    string("Parameter ", parEstModel[parEstInitialIndex,1], " ="))
+
+                    parEstInitialWinClose = Button("Close")
+                    signal_connect(parEstInitialWinClose, :clicked) do widget
+                        destroy(parEstInitialWin)
+                    end
+
+                    parEstInitialSet = Button("Set")
+                    signal_connect(parEstInitialSet, :clicked) do widget
+                        global parEstModel, parEstModelList, parEstInitialIndex
+                        # Check for non a number
+                        try
+                            global newPar
+                            newPar = get_gtk_property(parEstInitialEntry, :text, String)
+                            numNewPar = parse(Float64, newPar)
+                            idx = parEstInitialIndex
+                            parEstModel[idx,3] = numNewPar
+
+                            for i=1:3
+                                parEstModelList[idx, i] = parEstModel[idx,i]
+                            end
+
+                            destroy(parEstInitialWin)
+                        catch
+                            warn_dialog("Please write a number", parEstInitialWin)
+                            set_gtk_property!(parEstInitialEntry, :text, "")
+                        end
+                    end
+
+                    signal_connect(parEstInitialWin, "key-press-event") do widget, event
+                        global parEstModel, parEstModelList, parEstInitialIndex
+                        if event.keyval == 65293
+                            # Check for non a number
+                            try
+                                global newPar
+                                newPar = get_gtk_property(parEstInitialEntry, :text, String)
+                                numNewPar = parse(Float64, newPar)
+                                idx = parEstInitialIndex
+                                parEstModel[idx,3] = numNewPar
+
+                                for i=1:3
+                                    parEstModelList[idx, i] = parEstModel[idx,i]
+                                end
+
+                                destroy(parEstInitialWin)
+                            catch
+                                warn_dialog("Please write a number", parEstInitialWin)
+                                set_gtk_property!(parEstInitialEntry, :text, "")
+                            end
+                        end
+                    end
+
+                    parEstInitialWinGrid[1, 1] = parEstInitialLabel
+                    parEstInitialWinGrid[1, 2] = parEstInitialEntry
+                    parEstInitialWinGrid[1, 4] = parEstInitialWinClose
+                    parEstInitialWinGrid[1, 3] = parEstInitialSet
+
+                    push!(parEstInitialWin, parEstInitialWinGrid)
+                    showall(parEstInitialWin)
+                else
+                    warn_dialog("Please select a parameter!", parEstWin)
+                end
+            end
 
             ####################################################################
             # Fit button
@@ -1084,10 +1173,9 @@ function SimBioReactorGUI()
                 # Visual table
                 global parEstModelView = TreeView(TreeModel(parEstModelList))
                 set_gtk_property!(parEstModelView, :reorderable, true)
-                set_gtk_property!(parEstModelView, :hover_selection, true)
 
                 # Set selectable
-                selmodel2 = G_.selection(parEstModelView)
+                global parEstModelSel = G_.selection(parEstModelView)
                 set_gtk_property!(parEstModelView, :height_request, 340)
 
                 set_gtk_property!(parEstModelView, :enable_grid_lines, 3)
@@ -1274,7 +1362,6 @@ function SimBioReactorGUI()
             # Visual table
             global parEstDataView = TreeView(TreeModel(parEstDataList))
             set_gtk_property!(parEstDataView, :reorderable, true)
-            set_gtk_property!(parEstDataView, :hover_selection, true)
 
             # Set selectable
             selmodel1 = G_.selection(parEstDataView)
@@ -1299,10 +1386,9 @@ function SimBioReactorGUI()
             # Visual table
             global parEstModelView = TreeView(TreeModel(parEstModelList))
             set_gtk_property!(parEstModelView, :reorderable, true)
-            set_gtk_property!(parEstModelView, :hover_selection, true)
 
             # Set selectable
-            selmodel2 = G_.selection(parEstModelView)
+            global parEstModelSel = G_.selection(parEstModelView)
             set_gtk_property!(parEstModelView, :height_request, 340)
 
             set_gtk_property!(parEstModelView, :enable_grid_lines, 3)
@@ -1349,10 +1435,9 @@ function SimBioReactorGUI()
                 # Visual table
                 global parEstModelView = TreeView(TreeModel(parEstModelList))
                 set_gtk_property!(parEstModelView, :reorderable, true)
-                set_gtk_property!(parEstModelView, :hover_selection, true)
 
                 # Set selectable
-                selmodel2 = G_.selection(parEstModelView)
+                parEstModelSel = G_.selection(parEstModelView)
                 set_gtk_property!(parEstModelView, :height_request, 340)
 
                 set_gtk_property!(parEstModelView, :enable_grid_lines, 3)
