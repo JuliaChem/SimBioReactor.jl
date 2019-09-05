@@ -44,7 +44,6 @@ function SimBioReactorGUI()
     # Main buttons
     ############################################################################
     # Action for button "New simulation"
-    # TODO Simulation
     new = Button("New simulation")
     signal_connect(new, :clicked) do widget
         global newSim = Window()
@@ -54,7 +53,6 @@ function SimBioReactorGUI()
         set_gtk_property!(newSim, :height_request, 600)
         set_gtk_property!(newSim, :width_request, 900)
         set_gtk_property!(newSim, :accept_focus, true)
-
 
         # Background color
         # sc_newSim = Gtk.GAccessor.style_context(newSim)
@@ -215,7 +213,6 @@ function SimBioReactorGUI()
         # Visual table
         global newSimISView = TreeView(TreeModel(newSimISList))
         set_gtk_property!(newSimISView, :reorderable, true)
-        set_gtk_property!(newSimISView, :hover_selection, true)
 
         # Set selectable
         selmodelIS = G_.selection(newSimISView)
@@ -225,7 +222,7 @@ function SimBioReactorGUI()
         set_gtk_property!(newSimISView, :expand, true)
 
         newSimIS[1, 1] = newSimISView
-        push!(newSimWinFrame6, newSimISScroll)
+        push!(newSimWinFrame5, newSimISScroll)
 
         ########################################################################
         # Datasheet Reactor Properties
@@ -239,7 +236,6 @@ function SimBioReactorGUI()
         # Visual table
         global newSimRPView = TreeView(TreeModel(newSimRPList))
         set_gtk_property!(newSimRPView, :reorderable, true)
-        set_gtk_property!(newSimRPView, :hover_selection, true)
 
         # Set selectable
         selmodelRP = G_.selection(newSimRPView)
@@ -247,6 +243,26 @@ function SimBioReactorGUI()
 
         set_gtk_property!(newSimRPView, :enable_grid_lines, 3)
         set_gtk_property!(newSimRPView, :expand, true)
+
+        rTxtRP = CellRendererText()
+
+        global c1 = TreeViewColumn(
+            "Parameter",
+            rTxtRP,
+            Dict([("text", 0)])
+        )
+        global c2 = TreeViewColumn(
+            "Value",
+            rTxtRP,
+            Dict([("text", 1)])
+        )
+
+            # Allows to select rows
+        for c in [c1, c2]
+            GAccessor.resizable(c, true)
+        end
+
+        push!(newSimRPView, c1, c2)
 
         newSimRP[1, 1] = newSimRPView
         push!(newSimWinFrame7, newSimRPScroll)
@@ -263,7 +279,6 @@ function SimBioReactorGUI()
         # Visual table
         global newSimKPView = TreeView(TreeModel(newSimKPList))
         set_gtk_property!(newSimKPView, :reorderable, true)
-        set_gtk_property!(newSimKPView, :hover_selection, true)
 
         # Set selectable
         selmodelKP = G_.selection(newSimKPView)
@@ -272,8 +287,28 @@ function SimBioReactorGUI()
         set_gtk_property!(newSimKPView, :enable_grid_lines, 3)
         set_gtk_property!(newSimKPView, :expand, true)
 
-        newSimKP[1, 1] = newSimKPView
-        push!(newSimWinFrame5, newSimKPScroll)
+        rTxtKP = CellRendererText()
+
+        global c1 = TreeViewColumn(
+            "Parameter",
+            rTxtKP,
+            Dict([("text", 0)])
+        )
+        global c2 = TreeViewColumn(
+            "Value",
+            rTxtKP,
+            Dict([("text", 1)])
+        )
+
+            # Allows to select rows
+        for c in [c1, c2]
+            GAccessor.resizable(c, true)
+        end
+
+        push!(newSimKPView, c1, c2)
+
+        newSimKP[1, 2] = newSimKPView
+        push!(newSimWinFrame6, newSimKPScroll)
 
         ########################################################################
         # Buttons
@@ -295,64 +330,151 @@ function SimBioReactorGUI()
         newSimKPClear = Button("Clear")
         set_gtk_property!(newSimKPClear, :width_request, 150)
 
+        global newSimRPDataBackup = DataFrames.DataFrame()
+        newSimRPDataBackup.Parameter = ["X[0]", "S[0]", "t[0]", "t[f]"]
+        global newSimRPData = DataFrames.DataFrame(
+                        Parameter = String[], Value = Float64[])
+
         # Reactor properties
         newSimRPAdd = Button("Add")
         set_gtk_property!(newSimRPAdd, :width_request, 150)
         signal_connect(newSimRPAdd, :clicked) do widget
             if newSimTRindex == true
-                newSimRPAdddWin = Window()
-                set_gtk_property!(newSimRPAdddWin, :title, "Load data")
-                set_gtk_property!(newSimRPAdddWin, :window_position, 3)
-                set_gtk_property!(newSimRPAdddWin, :width_request, 250)
-                set_gtk_property!(newSimRPAdddWin, :height_request, 100)
-                set_gtk_property!(newSimRPAdddWin, :accept_focus, true)
+                newSimRPAddWin = Window()
+                set_gtk_property!(newSimRPAddWin, :title, "Load data")
+                set_gtk_property!(newSimRPAddWin, :window_position, 3)
+                set_gtk_property!(newSimRPAddWin, :width_request, 250)
+                set_gtk_property!(newSimRPAddWin, :height_request, 100)
+                set_gtk_property!(newSimRPAddWin, :accept_focus, true)
 
-                newSimRPAdddWinGrid = Grid()
-                set_gtk_property!(newSimRPAdddWinGrid, :margin_top, 40)
-                set_gtk_property!(newSimRPAdddWinGrid, :margin_left, 10)
-                set_gtk_property!(newSimRPAdddWinGrid, :margin_right, 10)
-                set_gtk_property!(newSimRPAdddWinGrid, :margin_bottom, 10)
-                set_gtk_property!(newSimRPAdddWinGrid, :column_spacing, 10)
-                set_gtk_property!(newSimRPAdddWinGrid, :row_spacing, 10)
+                newSimRPAddWinGrid = Grid()
+                set_gtk_property!(newSimRPAddWinGrid, :margin_top, 25)
+                set_gtk_property!(newSimRPAddWinGrid, :margin_left, 10)
+                set_gtk_property!(newSimRPAddWinGrid, :margin_right, 10)
+                set_gtk_property!(newSimRPAddWinGrid, :margin_bottom, 10)
+                set_gtk_property!(newSimRPAddWinGrid, :column_spacing, 10)
+                set_gtk_property!(newSimRPAddWinGrid, :row_spacing, 10)
                 set_gtk_property!(
-                    newSimRPAdddWinGrid,
+                    newSimRPAddWinGrid,
                     :column_homogeneous,
                     true
                 )
 
-                newSimRPAdddWinLabel = Entry()
+                newSimRPAddWinLabel = Label("Select an option:")
+
+                newSimRPAddWinEntry = Entry()
                 set_gtk_property!(
-                    newSimRPAdddWinLabel,
+                    newSimRPAddWinEntry,
                     :tooltip_markup,
-                    "X label"
+                    "Enter value"
                 )
-                set_gtk_property!(newSimRPAdddWinLabel, :width_request, 150)
-                set_gtk_property!(newSimRPAdddWinLabel, :text, "X label")
+                set_gtk_property!(newSimRPAddWinEntry, :width_request, 150)
+                set_gtk_property!(newSimRPAddWinEntry, :text, "")
 
                 newSimRPAddClose = Button("Close")
                 signal_connect(newSimRPAddClose, :clicked) do widget
-                    destroy(newSimRPAdddWin)
+                    destroy(newSimRPAddWin)
+                end
+
+                signal_connect(newSimRPAddWin, "key-press-event") do widget, event
+                    if event.keyval == 65307
+                        destroy(newSimRPAddWin)
+                    end
                 end
 
                 newSimRPAddSet = Button("Set")
                 signal_connect(newSimRPAddSet, :clicked) do widget
+                    global newSimRPData, newSimRPDataBackup
+                    global Idx = get_gtk_property(newSimRPAddComboBox, :active, Int)
+
+                    if Idx == -1
+                        warn_dialog("Please select a parameter!", newSimRPAddWin)
+                    else
+                        try
+                            global newSimRPPar
+                            newSimRPPar = get_gtk_property(newSimRPAddWinEntry, :text, String)
+                            numNewPar = parse(Float64, newSimRPPar)
+
+                            newSimL = size(newSimRPData,1)
+                            println(newSimL)
+                            push!(newSimRPData, (newSimRPDataBackup[Idx+1,1], numNewPar))
+                            push!(newSimRPList, (newSimRPData.Parameter[newSimL+1,1], numNewPar))
+
+                            DataFrames.deleterows!(newSimRPDataBackup, Idx+1)
+
+                            empty!(newSimRPAddComboBox)
+                            for choice in newSimRPDataBackup.Parameter
+                                push!(newSimRPAddComboBox, choice)
+                            end
+
+                            if size(newSimRPDataBackup,1) == 0
+                                destroy(newSimRPAddWin)
+                            end
+                            set_gtk_property!(newSimRPAddWinEntry, :text, "")
+                            set_gtk_property!(newSimRPEdit, :sensitive, true)
+                            set_gtk_property!(newSimRPClear, :sensitive, true)
+                        catch
+                            warn_dialog("Please write a number", newSimRPAddWin)
+                            set_gtk_property!(newSimRPAddWinEntry, :text, "")
+                        end
+                    end
+                end
+
+                signal_connect(newSimRPAddWin, "key-press-event") do widget, event
+                    global newSimRPData, newSimRPDataBackup
+                    if event.keyval == 65293
+                        global Idx = get_gtk_property(newSimRPAddComboBox, :active, Int)
+
+                        if Idx == -1
+                            warn_dialog("Please select a parameter!", newSimRPAddWin)
+                        else
+                            try
+                                global newSimRPPar
+                                newSimRPPar = get_gtk_property(newSimRPAddWinEntry, :text, String)
+                                numNewPar = parse(Float64, newSimRPPar)
+
+                                newSimL = size(newSimRPData,1)
+                                println(newSimL)
+                                push!(newSimRPData, (newSimRPDataBackup[Idx+1,1], numNewPar))
+                                push!(newSimRPList, (newSimRPData.Parameter[newSimL+1,1], numNewPar))
+
+                                DataFrames.deleterows!(newSimRPDataBackup, Idx+1)
+
+                                empty!(newSimRPAddComboBox)
+                                for choice in newSimRPDataBackup.Parameter
+                                    push!(newSimRPAddComboBox, choice)
+                                end
+                                set_gtk_property!(newSimRPAddWinEntry, :text, "")
+
+                                if size(newSimRPDataBackup,1) == 0
+                                    destroy(newSimRPAddWin)
+                                end
+                            catch
+                                warn_dialog("Please write a number", newSimRPAddWin)
+                                set_gtk_property!(newSimRPAddWinEntry, :text, "")
+                                set_gtk_property!(newSimRPEdit, :sensitive, true)
+                                set_gtk_property!(newSimRPClear, :sensitive, true)
+                            end
+                        end
+                    end
                 end
 
                 newSimRPAddComboBox = GtkComboBoxText()
-                newSimRPAddSetChoices = ["X(0)", "S(0)", "tf"]
-                for choice in newSimRPAddSetChoices
+                for choice in newSimRPDataBackup.Parameter
                     push!(newSimRPAddComboBox, choice)
                 end
 
                 # Lets set the active element to be "0"
                 set_gtk_property!(newSimRPAddComboBox, :active, -1)
 
-                newSimRPAdddWinGrid[1:2, 1] = newSimRPAddComboBox
-                newSimRPAdddWinGrid[1, 2] = newSimRPAddClose
-                newSimRPAdddWinGrid[2, 2] = newSimRPAddSet
+                newSimRPAddWinGrid[1:2, 1] = newSimRPAddWinLabel
+                newSimRPAddWinGrid[1:2, 2] = newSimRPAddComboBox
+                newSimRPAddWinGrid[1:2, 3] = newSimRPAddWinEntry
+                newSimRPAddWinGrid[1, 4] = newSimRPAddClose
+                newSimRPAddWinGrid[2, 4] = newSimRPAddSet
 
-                push!(newSimRPAdddWin, newSimRPAdddWinGrid)
-                showall(newSimRPAdddWin)
+                push!(newSimRPAddWin, newSimRPAddWinGrid)
+                showall(newSimRPAddWin)
             end
         end
 
@@ -373,6 +495,12 @@ function SimBioReactorGUI()
         newSimClose = Button("Close")
         signal_connect(newSimClose, :clicked) do widget
             destroy(newSim)
+        end
+
+        signal_connect(newSim, "key-press-event") do widget, event
+            if event.keyval == 65307
+                visible(newSim, false)
+            end
         end
 
         newSimRun = Button("Run simulation")
@@ -397,6 +525,8 @@ function SimBioReactorGUI()
         set_gtk_property!(newSimKPClear, :sensitive, false)
         set_gtk_property!(newSimRPEdit, :sensitive, false)
         set_gtk_property!(newSimRPClear, :sensitive, false)
+
+        visible(newSim, true)
 
         ########################################################################
         # Element location
@@ -444,11 +574,6 @@ function SimBioReactorGUI()
         push!(newSim, newSimWinGrid0)
         showall(newSim)
     end
-
-    ############################################################################
-    # Action for button "Open simulation"
-    ############################################################################
-    open = Button("Open simulation")
 
     ############################################################################
     # Action for button "Parameter Estimation"
@@ -605,6 +730,12 @@ function SimBioReactorGUI()
                     destroy(parEstLoadWin)
                 end
 
+                signal_connect(parEstLoadWin, "key-press-event") do widget, event
+                    if event.keyval == 65307
+                        destroy(parEstLoadWin)
+                    end
+                end
+
                 parEstBrowseData = Button("Browse")
                 signal_connect(parEstBrowseData, :clicked) do widget
                     global dlg
@@ -700,6 +831,82 @@ function SimBioReactorGUI()
                 destroy(mainWin)
             end
 
+            signal_connect(parEstWin, "key-press-event") do widget, event
+                if event.keyval == 65307
+                    global parEstWinFrameData
+                    global parEstWinFrameData
+
+                    # Delete treeview to clear data table
+                    destroy(parEstWinFrameData)
+
+                    global parEstGridData = Grid()
+                    global parEstWinDataScroll = ScrolledWindow(parEstGridData)
+
+                    # Redrawn TreeView after deletion of previous one.
+                    # Table for data
+                    global parEstDataList = ListStore(Float64, Float64)
+
+                    # Visual table
+                    global parEstDataView = TreeView(TreeModel(parEstDataList))
+                    set_gtk_property!(parEstDataView, :reorderable, true)
+                    set_gtk_property!(parEstDataView, :hover_selection, true)
+
+                    # Set selectable
+                    selmodel1 = G_.selection(parEstDataView)
+                    set_gtk_property!(parEstDataView, :height_request, 340)
+
+                    set_gtk_property!(parEstDataView, :enable_grid_lines, 3)
+                    set_gtk_property!(parEstDataView, :expand, true)
+
+                    parEstGridData[1, 1] = parEstDataView
+                    push!(parEstWinFrameData, parEstWinDataScroll)
+                    parEstFrame1Grid[1:2, 2] = parEstWinFrameData
+                    #showall(parEstWin)
+
+                    visible(parEstFrame2Grid, false)
+                    set_gtk_property!(parEstLoad, :sensitive, true)
+                    set_gtk_property!(parEstClearData, :sensitive, false)
+                    set_gtk_property!(parEstReport, :sensitive, false)
+
+                    global parEstWinFrameModel
+
+                    Gtk.@sigatom set_gtk_property!(parEstComboBox, :active, -1)
+                    set_gtk_property!(parEstInitial, :sensitive, false)
+
+                    # Delete treeview to clear data table
+                    destroy(parEstWinFrameModel)
+
+                    global parEstGridModel = Grid()
+                    global parEstWinModel = ScrolledWindow(parEstGridModel)
+
+                    # Redrawn TreeView after deletion of previous one.
+                    # Table for data
+                    global parEstModelList = ListStore(String, Float64, Float64)
+
+                    # Visual table
+                    global parEstModelView = TreeView(TreeModel(parEstModelList))
+                    set_gtk_property!(parEstModelView, :reorderable, true)
+
+                    # Set selectable
+                    parEstModelSel = G_.selection(parEstModelView)
+                    set_gtk_property!(parEstModelView, :height_request, 340)
+
+                    set_gtk_property!(parEstModelView, :enable_grid_lines, 3)
+                    set_gtk_property!(parEstModelView, :expand, true)
+
+                    parEstGridModel[1, 1] = parEstModelView
+                    push!(parEstWinFrameModel, parEstWinModel)
+                    parEstFrame3Grid[1:2, 2] = parEstWinFrameModel
+                    set_gtk_property!(parEstReport, :sensitive, false)
+                    set_gtk_property!(parEstClearData, :sensitive, false)
+                    set_gtk_property!(parEstReport, :sensitive, false)
+                    set_gtk_property!(parEstExport, :sensitive, false)
+                    set_gtk_property!(parEstClearPlot, :sensitive, false)
+                    showall(parEstWin)
+                    visible(parEstFrame2Grid, false)
+                    visible(parEstWin, false)
+                end
+            end
             parEstClose = Button("Close")
             signal_connect(parEstClose, :clicked) do widget
                 global parEstWinFrameData
@@ -1131,6 +1338,12 @@ function SimBioReactorGUI()
                         end
                     end
 
+                    signal_connect(parEstInitialWin, "key-press-event") do widget, event
+                        if event.keyval == 65307
+                            destroy(parEstInitialWin)
+                        end
+                    end
+
                     parEstInitialWinGrid[1, 1] = parEstInitialLabel
                     parEstInitialWinGrid[1, 2] = parEstInitialEntry
                     parEstInitialWinGrid[1, 4] = parEstInitialWinClose
@@ -1213,7 +1426,7 @@ function SimBioReactorGUI()
                     Bertalanffy(t, P) =
                         P[1] .* (1 .- exp.(-P[2] .* (t .- P[3])))
                         # Initial values
-                    p0 = [7000, 2.0, 5]
+                    p0 = parEstModel.Initial
                     global modelName = "Bertalanffy"
                     global fit = curve_fit(Bertalanffy, xvals[], yvals[], p0)
                     global yFit = Bertalanffy(xvals[], fit.param)
@@ -1224,7 +1437,7 @@ function SimBioReactorGUI()
                     # Model definition
                     Brody(t, P) = P[1] .* (1 .- P[2] .* exp.(-P[3] .* t))
                     # Initial values
-                    p0 = [80000, 2.0, 5]
+                    p0 = parEstModel.Initial
                     global modelName = "Brody"
                     global fit = curve_fit(Brody, xvals[], yvals[], p0)
                     global yFit = Brody(xvals[], fit.param)
@@ -1236,7 +1449,7 @@ function SimBioReactorGUI()
                     Gompertz(t, p) = p[1] * exp.(-p[2] * exp.(-p[3] * t))
 
                     # Initial values
-                    p0 = [31, 2, 0.5]
+                    p0 = parEstModel.Initial
                     global modelName = "Gompertz"
                     global fit = curve_fit(Gompertz, xvals[], yvals[], p0)
                     global yFit = Gompertz(xvals[], fit.param)
@@ -1248,7 +1461,7 @@ function SimBioReactorGUI()
                     Logistic(t, P) = P[1] ./ (1 .+ P[2] .* exp.(-P[3] .* t))
 
                     # Initial values
-                    p0 = [31, 2, 0.5]
+                    p0 = parEstModel.Initial
                     global modelName = "Logistic"
                     global fit = curve_fit(Logistic, xvals[], yvals[], p0)
                     global yFit = Logistic(xvals[], fit.param)
@@ -1602,7 +1815,6 @@ function SimBioReactorGUI()
     # Action for button "About"
     ############################################################################
     about = Button("About")
-
     signal_connect(about, :clicked) do widget
         aboutWin = Window()
         set_gtk_property!(aboutWin, :title, "About")
@@ -1666,16 +1878,20 @@ title=\"Clic to download\">https://github.com/JuliaChem/SimBioReactor.jl</a>"""
         destroy(mainWin)
     end
 
+    signal_connect(mainWin, "key-press-event") do widget, event
+        if event.keyval == 65307
+            destroy(mainWin)
+        end
+    end
     ############################################################################
     # Set buttons to mainGrid
     ############################################################################
 
     mainGrid[1,1] = new
-    mainGrid[1,2] = open
-    mainGrid[1,3] = parEst
-    mainGrid[1,4] = doc
-    mainGrid[1,5] = about
-    mainGrid[1,6] = exit
+    mainGrid[1,2] = parEst
+    mainGrid[1,3] = doc
+    mainGrid[1,4] = about
+    mainGrid[1,5] = exit
 
     # Set mainGrid to mainWin
     push!(mainWin, mainGrid)
