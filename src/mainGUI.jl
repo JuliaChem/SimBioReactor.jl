@@ -238,7 +238,7 @@ function SimBioReactorGUI()
         set_gtk_property!(newSimRPView, :reorderable, true)
 
         # Set selectable
-        selmodelRP = G_.selection(newSimRPView)
+        global selmodelRP = G_.selection(newSimRPView)
         set_gtk_property!(newSimRPView, :height_request, 340)
 
         set_gtk_property!(newSimRPView, :enable_grid_lines, 3)
@@ -281,7 +281,7 @@ function SimBioReactorGUI()
         set_gtk_property!(newSimKPView, :reorderable, true)
 
         # Set selectable
-        selmodelKP = G_.selection(newSimKPView)
+        global selmodelKP = G_.selection(newSimKPView)
         set_gtk_property!(newSimKPView, :height_request, 340)
 
         set_gtk_property!(newSimKPView, :enable_grid_lines, 3)
@@ -313,7 +313,10 @@ function SimBioReactorGUI()
         ########################################################################
         # Buttons
         ########################################################################
-        # Input streams
+
+        ########################################################################
+        # Input
+        ########################################################################
         newSimInputAdd = Button("Add")
         set_gtk_property!(newSimInputAdd, :width_request, 150)
         set_gtk_property!(newSimInputAdd, :sensitive, false)
@@ -322,20 +325,282 @@ function SimBioReactorGUI()
         newSimInputClear = Button("Clear")
         set_gtk_property!(newSimInputClear, :width_request, 150)
 
-        # Kinetic parameters
-        newSimKPLoad = Button("Load")
-        set_gtk_property!(newSimKPLoad, :width_request, 150)
+        ########################################################################
+        # Kinetic
+        ########################################################################
+        global newSimKPDataBackup = DataFrames.DataFrame()
+        newSimKPDataBackup.Parameter = ["Ks", "Y", "λ", "β"]
+        global newSimKPData = DataFrames.DataFrame(
+                        Parameter = String[], Value = Float64[])
+
+        # TODO hange variables to KP
+        newSimKPAdd = Button("Add")
+        set_gtk_property!(newSimKPAdd, :width_request, 150)
+        signal_connect(newSimKPAdd, :clicked) do widget
+            if newSimTRindex == true
+                newSimKPAddWin = Window()
+                set_gtk_property!(newSimKPAddWin, :title, "Load data")
+                set_gtk_property!(newSimKPAddWin, :window_position, 3)
+                set_gtk_property!(newSimKPAddWin, :width_request, 250)
+                set_gtk_property!(newSimKPAddWin, :height_request, 100)
+                set_gtk_property!(newSimKPAddWin, :accept_focus, true)
+
+                newSimKPAddWinGrid = Grid()
+                set_gtk_property!(newSimKPAddWinGrid, :margin_top, 25)
+                set_gtk_property!(newSimKPAddWinGrid, :margin_left, 10)
+                set_gtk_property!(newSimKPAddWinGrid, :margin_right, 10)
+                set_gtk_property!(newSimKPAddWinGrid, :margin_bottom, 10)
+                set_gtk_property!(newSimKPAddWinGrid, :column_spacing, 10)
+                set_gtk_property!(newSimKPAddWinGrid, :row_spacing, 10)
+                set_gtk_property!(
+                    newSimKPAddWinGrid,
+                    :column_homogeneous,
+                    true
+                )
+
+                newSimKPAddWinLabel = Label("Select an option:")
+
+                newSimKPAddWinEntry = Entry()
+                set_gtk_property!(
+                    newSimKPAddWinEntry,
+                    :tooltip_markup,
+                    "Enter value"
+                )
+                set_gtk_property!(newSimKPAddWinEntry, :width_request, 150)
+                set_gtk_property!(newSimKPAddWinEntry, :text, "")
+
+                newSimKPAddClose = Button("Close")
+                signal_connect(newSimKPAddClose, :clicked) do widget
+                    destroy(newSimKPAddWin)
+                end
+
+                signal_connect(newSimKPAddWin, "key-press-event") do widget, event
+                    if event.keyval == 65307
+                        destroy(newSimKPAddWin)
+                    end
+                end
+
+                newSimKPAddSet = Button("Set")
+                signal_connect(newSimKPAddSet, :clicked) do widget
+                    global newSimKPData, newSimKPDataBackup
+                    global Idx = get_gtk_property(newSimKPAddComboBox, :active, Int)
+
+                    if Idx == -1
+                        warn_dialog("Please select a parameter!", newSimKPAddWin)
+                    else
+                        try
+                            global newSimKPPar
+                            newSimKPPar = get_gtk_property(newSimKPAddWinEntry, :text, String)
+                            numNewPar = parse(Float64, newSimKPPar)
+
+                            newSimL = size(newSimKPData,1)
+                            push!(newSimKPData, (newSimKPDataBackup[Idx+1,1], numNewPar))
+                            push!(newSimKPList, (newSimKPData.Parameter[newSimL+1,1], numNewPar))
+
+                            DataFrames.deleterows!(newSimKPDataBackup, Idx+1)
+
+                            empty!(newSimKPAddComboBox)
+                            for choice in newSimKPDataBackup.Parameter
+                                push!(newSimKPAddComboBox, choice)
+                            end
+
+                            if size(newSimKPDataBackup,1) == 0
+                                destroy(newSimKPAddWin)
+                            end
+                            set_gtk_property!(newSimKPAddWinEntry, :text, "")
+                            set_gtk_property!(newSimKPEdit, :sensitive, true)
+                            set_gtk_property!(newSimKPClear, :sensitive, true)
+                        catch
+                            warn_dialog("Please write a number", newSimKPAddWin)
+                            set_gtk_property!(newSimKPAddWinEntry, :text, "")
+                        end
+                    end
+                end
+
+                signal_connect(newSimKPAddWin, "key-press-event") do widget, event
+                    global newSimKPData, newSimKPDataBackup
+                    if event.keyval == 65293
+                        global Idx = get_gtk_property(newSimKPAddComboBox, :active, Int)
+
+                        if Idx == -1
+                            warn_dialog("Please select a parameter!", newSimKPAddWin)
+                        else
+                            try
+                                global newSimKPPar
+                                newSimKPPar = get_gtk_property(newSimKPAddWinEntry, :text, String)
+                                numNewPar = parse(Float64, newSimKPPar)
+
+                                newSimL = size(newSimKPData,1)
+                                push!(newSimKPData, (newSimKPDataBackup[Idx+1,1], numNewPar))
+                                push!(newSimKPList, (newSimKPData.Parameter[newSimL+1,1], numNewPar))
+
+                                DataFrames.deleterows!(newSimKPDataBackup, Idx+1)
+
+                                empty!(newSimKPAddComboBox)
+                                for choice in newSimKPDataBackup.Parameter
+                                    push!(newSimKPAddComboBox, choice)
+                                end
+
+                                if size(newSimKPDataBackup,1) == 0
+                                    destroy(newSimKPAddWin)
+                                end
+
+                                set_gtk_property!(newSimKPEdit, :sensitive, true)
+                                set_gtk_property!(newSimKPClear, :sensitive, true)
+                                set_gtk_property!(newSimKPAddWinEntry, :text, "")
+                            catch
+                                warn_dialog("Please write a number", newSimKPAddWin)
+                                set_gtk_property!(newSimKPAddWinEntry, :text, "")
+                            end
+                        end
+                    end
+                end
+
+                newSimKPAddComboBox = GtkComboBoxText()
+                for choice in newSimKPDataBackup.Parameter
+                    push!(newSimKPAddComboBox, choice)
+                end
+
+                # Lets set the active element to be "0"
+                set_gtk_property!(newSimKPAddComboBox, :active, -1)
+
+                newSimKPAddWinGrid[1:2, 1] = newSimKPAddWinLabel
+                newSimKPAddWinGrid[1:2, 2] = newSimKPAddComboBox
+                newSimKPAddWinGrid[1:2, 3] = newSimKPAddWinEntry
+                newSimKPAddWinGrid[1, 4] = newSimKPAddClose
+                newSimKPAddWinGrid[2, 4] = newSimKPAddSet
+
+                push!(newSimKPAddWin, newSimKPAddWinGrid)
+                showall(newSimKPAddWin)
+            end
+        end
+
         newSimKPEdit = Button("Edit")
         set_gtk_property!(newSimKPEdit, :width_request, 150)
+        signal_connect(newSimKPEdit, :clicked) do widget
+            global selmodelKP, newSimKPData, newSimKPList
+
+            if hasselection(selmodelKP)
+                editKPWin = Window()
+                set_gtk_property!(editKPWin, :title, "Edit")
+                set_gtk_property!(editKPWin, :window_position, 3)
+                set_gtk_property!(editRPWin, :width_request, 100)
+                set_gtk_property!(editKPWin, :height_request, 70)
+                set_gtk_property!(editKPWin, :accept_focus, true)
+
+                editKPWinGrid = Grid()
+                set_gtk_property!(editKPWinGrid, :margin_top, 25)
+                set_gtk_property!(editKPWinGrid, :margin_left, 10)
+                set_gtk_property!(editKPWinGrid, :margin_right, 10)
+                set_gtk_property!(editKPWinGrid, :margin_bottom, 10)
+                set_gtk_property!(editKPWinGrid, :column_spacing, 10)
+                set_gtk_property!(editKPWinGrid, :row_spacing, 10)
+                set_gtk_property!(editKPWinGrid, :column_homogeneous, true)
+
+                editKPEntry = Entry()
+                set_gtk_property!(editKPEntry, :tooltip_markup, "Enter value")
+                set_gtk_property!(editKPEntry, :width_request, 80)
+                set_gtk_property!(editKPEntry, :text, "")
+
+                editKPLabel = Label("")
+                global editKPIndex = Gtk.index_from_iter(newSimKPList,
+                                        selected(selmodelKP))
+                set_gtk_property!(
+                editKPLabel, :label,
+                string("Parameter ", newSimKPData[editKPIndex,1], " ="))
+
+                editKPWinClose = Button("Close")
+                signal_connect(editKPWinClose, :clicked) do widget
+                    destroy(editKPWin)
+                end
+
+                # Set button to apply values
+                editKPSet = Button("Set")
+                signal_connect(editKPSet, :clicked) do widget
+                    global newSimKPData, newSimKPList, editKPIndex
+                    # Check for non a number
+                    try
+                        global newPar
+                        newPar = get_gtk_property(editKPEntry, :text, String)
+                        numNewPar = parse(Float64, newPar)
+                        idx = editKPIndex
+                        newSimKPData[idx,2] = numNewPar
+
+                        for i=1:2
+                            newSimKPList[idx, i] = newSimKPData[idx,i]
+                        end
+
+                        destroy(editKPWin)
+                    catch
+                        warn_dialog("Please write a number", editKPWin)
+                        set_gtk_property!(editKPEntry, :text, "")
+                    end
+                end
+
+                # Same action as set
+                signal_connect(editKPWin, "key-press-event") do widget, event
+                    global newSimKPData, newSimKPList, editKPIndex
+                    if event.keyval == 65293
+                        # Check for non a number
+                        try
+                            global newPar
+                            newPar = get_gtk_property(editKPEntry, :text, String)
+                            numNewPar = parse(Float64, newPar)
+                            idx = editKPIndex
+                            newSimKPData[idx,2] = numNewPar
+
+                            for i=1:2
+                                newSimKPList[idx, i] = newSimKPData[idx,i]
+                            end
+
+                            destroy(editKPWin)
+                        catch
+                            warn_dialog("Please write a number", editKPWin)
+                            set_gtk_property!(editKPEntry, :text, "")
+                        end
+                    end
+                end
+
+                signal_connect(editKPWin, "key-press-event") do widget, event
+                    if event.keyval == 65307
+                        destroy(editKPWin)
+                    end
+                end
+
+                editKPWinGrid[1, 1] = editKPLabel
+                editKPWinGrid[1, 2] = editKPEntry
+                editKPWinGrid[1, 4] = editKPWinClose
+                editKPWinGrid[1, 3] = editKPSet
+
+                push!(editKPWin, editKPWinGrid)
+                showall(editKPWin)
+            else
+                warn_dialog("Please select a parameter!", editKPWin)
+            end
+        end
+
         newSimKPClear = Button("Clear")
         set_gtk_property!(newSimKPClear, :width_request, 150)
+        signal_connect(newSimKPClear, :clicked) do widget
+            global newSimKPDataBackup, newSimKPData
+            empty!(newSimKPList)
+            newSimKPData = DataFrames.DataFrame(
+                            Parameter = String[], Value = Float64[])
+            global newSimKPDataBackup = DataFrames.DataFrame()
+            newSimKPDataBackup.Parameter = ["Ks", "Y", "λ", "β"]
 
+            set_gtk_property!(newSimKPEdit, :sensitive, false)
+            set_gtk_property!(newSimKPClear, :sensitive, false)
+        end
+
+        ########################################################################
+        # Reactor properties
+        ########################################################################
         global newSimRPDataBackup = DataFrames.DataFrame()
         newSimRPDataBackup.Parameter = ["X[0]", "S[0]", "t[0]", "t[f]"]
         global newSimRPData = DataFrames.DataFrame(
                         Parameter = String[], Value = Float64[])
 
-        # Reactor properties
         newSimRPAdd = Button("Add")
         set_gtk_property!(newSimRPAdd, :width_request, 150)
         signal_connect(newSimRPAdd, :clicked) do widget
@@ -391,12 +656,11 @@ function SimBioReactorGUI()
                         warn_dialog("Please select a parameter!", newSimRPAddWin)
                     else
                         try
-                            global newSimRPPar
+                            global newSimRPPar, newSimRPEdit
                             newSimRPPar = get_gtk_property(newSimRPAddWinEntry, :text, String)
                             numNewPar = parse(Float64, newSimRPPar)
 
                             newSimL = size(newSimRPData,1)
-                            println(newSimL)
                             push!(newSimRPData, (newSimRPDataBackup[Idx+1,1], numNewPar))
                             push!(newSimRPList, (newSimRPData.Parameter[newSimL+1,1], numNewPar))
 
@@ -434,21 +698,24 @@ function SimBioReactorGUI()
                                 numNewPar = parse(Float64, newSimRPPar)
 
                                 newSimL = size(newSimRPData,1)
-                                println(newSimL)
                                 push!(newSimRPData, (newSimRPDataBackup[Idx+1,1], numNewPar))
                                 push!(newSimRPList, (newSimRPData.Parameter[newSimL+1,1], numNewPar))
 
                                 DataFrames.deleterows!(newSimRPDataBackup, Idx+1)
 
                                 empty!(newSimRPAddComboBox)
+
                                 for choice in newSimRPDataBackup.Parameter
                                     push!(newSimRPAddComboBox, choice)
                                 end
-                                set_gtk_property!(newSimRPAddWinEntry, :text, "")
 
                                 if size(newSimRPDataBackup,1) == 0
                                     destroy(newSimRPAddWin)
                                 end
+
+                                set_gtk_property!(newSimRPAddWinEntry, :text, "")
+                                set_gtk_property!(newSimRPEdit, :sensitive, true)
+                                set_gtk_property!(newSimRPClear, :sensitive, true)
                             catch
                                 warn_dialog("Please write a number", newSimRPAddWin)
                                 set_gtk_property!(newSimRPAddWinEntry, :text, "")
@@ -478,12 +745,124 @@ function SimBioReactorGUI()
             end
         end
 
-
-        newSimRPEdit = Button("Edit")
+        # Edit vapues for reactor properties
+        global newSimRPEdit = Button("Edit")
         set_gtk_property!(newSimRPEdit, :width_request, 150)
+        signal_connect(newSimRPEdit, :clicked) do widget
+            global selmodelRP, newSimRPData, newSimRPList
+
+            if hasselection(selmodelRP)
+                editRPWin = Window()
+                set_gtk_property!(editRPWin, :title, "Edit")
+                set_gtk_property!(editRPWin, :window_position, 3)
+                set_gtk_property!(editRPWin, :width_request, 100)
+                set_gtk_property!(editRPWin, :height_request, 70)
+                set_gtk_property!(editRPWin, :accept_focus, true)
+
+                editRPWinGrid = Grid()
+                set_gtk_property!(editRPWinGrid, :margin_top, 25)
+                set_gtk_property!(editRPWinGrid, :margin_left, 10)
+                set_gtk_property!(editRPWinGrid, :margin_right, 10)
+                set_gtk_property!(editRPWinGrid, :margin_bottom, 10)
+                set_gtk_property!(editRPWinGrid, :column_spacing, 10)
+                set_gtk_property!(editRPWinGrid, :row_spacing, 10)
+                set_gtk_property!(editRPWinGrid, :column_homogeneous, true)
+
+                editRPEntry = Entry()
+                set_gtk_property!(editRPEntry, :tooltip_markup, "Enter value")
+                set_gtk_property!(editRPEntry, :width_request, 80)
+                set_gtk_property!(editRPEntry, :text, "")
+
+                editRPLabel = Label("")
+                global editRPIndex = Gtk.index_from_iter(newSimRPList,
+                                        selected(selmodelRP))
+                set_gtk_property!(
+                editRPLabel, :label,
+                string("Parameter ", newSimRPData[editRPIndex,1], " ="))
+
+                editRPWinClose = Button("Close")
+                signal_connect(editRPWinClose, :clicked) do widget
+                    destroy(editRPWin)
+                end
+
+                # Set button to apply values
+                editRPSet = Button("Set")
+                signal_connect(editRPSet, :clicked) do widget
+                    global newSimRPData, newSimRPList, editRPIndex
+                    # Check for non a number
+                    try
+                        global newPar
+                        newPar = get_gtk_property(editRPEntry, :text, String)
+                        numNewPar = parse(Float64, newPar)
+                        idx = editRPIndex
+                        newSimRPData[idx,2] = numNewPar
+
+                        for i=1:2
+                            newSimRPList[idx, i] = newSimRPData[idx,i]
+                        end
+
+                        destroy(editRPWin)
+                    catch
+                        warn_dialog("Please write a number", editRPWin)
+                        set_gtk_property!(editRPEntry, :text, "")
+                    end
+                end
+
+                # Same action as set
+                signal_connect(editRPWin, "key-press-event") do widget, event
+                    global newSimRPData, newSimRPList, editRPIndex
+                    if event.keyval == 65293
+                        # Check for non a number
+                        try
+                            global newPar
+                            newPar = get_gtk_property(editRPEntry, :text, String)
+                            numNewPar = parse(Float64, newPar)
+                            idx = editRPIndex
+                            newSimRPData[idx,2] = numNewPar
+
+                            for i=1:2
+                                newSimRPList[idx, i] = newSimRPData[idx,i]
+                            end
+
+                            destroy(editRPWin)
+                        catch
+                            warn_dialog("Please write a number", editRPWin)
+                            set_gtk_property!(editRPEntry, :text, "")
+                        end
+                    end
+                end
+
+                signal_connect(editRPWin, "key-press-event") do widget, event
+                    if event.keyval == 65307
+                        destroy(editRPWin)
+                    end
+                end
+
+                editRPWinGrid[1, 1] = editRPLabel
+                editRPWinGrid[1, 2] = editRPEntry
+                editRPWinGrid[1, 4] = editRPWinClose
+                editRPWinGrid[1, 3] = editRPSet
+
+                push!(editRPWin, editRPWinGrid)
+                showall(editRPWin)
+            else
+                warn_dialog("Please select a parameter!", editRPWin)
+            end
+        end
+
         newSimRPClear = Button("Clear")
         set_gtk_property!(newSimRPClear, :width_request, 150)
+        signal_connect(newSimRPClear, :clicked) do widget
+            global newSimRPDataBackup, newSimRPData
+            empty!(newSimRPList)
+            newSimRPData = DataFrames.DataFrame(
+                            Parameter = String[], Value = Float64[])
+            newSimRPDataBackup = DataFrames.DataFrame()
+            newSimRPDataBackup.Parameter = ["X[0]", "S[0]", "t[0]", "t[f]"]
 
+            set_gtk_property!(newSimRPEdit, :sensitive, false)
+            set_gtk_property!(newSimRPClear, :sensitive, false)
+        end
 
         # Signal connect for exit parameter estimation
         newSimExit = Button("Exit")
@@ -549,7 +928,7 @@ function SimBioReactorGUI()
         newSimFrame2Grid[2, 3] = newSimInputClear
 
         newSimFrame3Grid[1, 1:3] = newSimWinFrame6
-        newSimFrame3Grid[2, 1] = newSimKPLoad
+        newSimFrame3Grid[2, 1] = newSimKPAdd
         newSimFrame3Grid[2, 2] = newSimKPEdit
         newSimFrame3Grid[2, 3] = newSimKPClear
 
@@ -1051,11 +1430,14 @@ function SimBioReactorGUI()
                 )
 
                 Plots.plot!(
-                    xvals[],
-                    yFit,
+                    xvals[], yFit,
+                    xlim=(xvals[][1], xvals[][end]),
+                    xticks=xvals[][1]:((xvals[][end]-xvals[][1])/10):xvals[][end],
+                    ylim=(yvals[][1], ceil(yvals[][end]*1.20)),
+                    yticks=range(yvals[][1], ceil(yvals[][end]*1.20), length=6),
                     framestyle = :box,
-                    label = "Predicted Data"
-                )
+                    label = "Predicted Data")
+                    -
                 Plots.savefig(
                     plt1,
                     string("C:\\Windows\\Temp\\", "parEstFigReport.png")
@@ -1130,15 +1512,17 @@ function SimBioReactorGUI()
                     yvals[] = parEstData[:, 2]
 
                     plt2 = Plots.scatter(
-                        xvals[],
-                        yvals[],
+                        xvals[], yvals[],
                         xlabel = labelX,
                         ylabel = labelY,
                         label = "Experimental Data"
                     )
                     Plots.plot!(
-                        xvals[],
-                        yFit,
+                        xvals[], yFit,
+                        xlim=(xvals[][1], xvals[][end]),
+                        xticks=xvals[][1]:((xvals[][end]-xvals[][1])/10):xvals[][end],
+                        ylim=(yvals[][1], ceil(yvals[][end]*1.20)),
+                        yticks=range(yvals[][1], ceil(yvals[][end]*1.20), length=6),
                         framestyle = :box,
                         label = "Predicted Data"
                     )
