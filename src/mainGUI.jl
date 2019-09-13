@@ -1,4 +1,5 @@
 using Gtk, Gtk.ShortNames, GR, Printf, CSV, LsqFit, Distributions, Mustache
+using DifferentialEquations
 import DataFrames, Plots
 import DefaultApplication, Dates
 Plots.pyplot()
@@ -9,6 +10,8 @@ const yvals = Ref(zeros(0))
 
 # Variable declaration for parEst Plots
 canvas = nothing
+newSimCanvas = nothing
+newSimPlotStatus = 0
 plotStatus = 0
 parEstStatus = 0
 
@@ -73,11 +76,13 @@ function SimBioReactorGUI()
         ########################################################################
         # Sub Grids
         ########################################################################
+        # Left
         global newSimWinGridM1 = Grid()
         set_gtk_property!(newSimWinGridM1, :column_homogeneous, false)
         set_gtk_property!(newSimWinGridM1, :row_homogeneous, false)
         set_gtk_property!(newSimWinGridM1, :row_spacing, 10)
 
+        # Right
         global newSimWinGridM2 = Grid()
         set_gtk_property!(newSimWinGridM2, :column_homogeneous, false)
         set_gtk_property!(newSimWinGridM2, :row_homogeneous, false)
@@ -86,6 +91,7 @@ function SimBioReactorGUI()
         ########################################################################
         # Frame Grids
         ########################################################################
+        # TR
         global newSimFrame1Grid = Grid()
         set_gtk_property!(newSimFrame1Grid, :column_homogeneous, true)
         set_gtk_property!(newSimFrame1Grid, :column_spacing, 10)
@@ -94,6 +100,7 @@ function SimBioReactorGUI()
         set_gtk_property!(newSimFrame1Grid, :margin_left, 40)
         set_gtk_property!(newSimFrame1Grid, :margin_right, 0)
 
+        # Input
         global newSimFrame2Grid = Grid()
         set_gtk_property!(newSimFrame2Grid, :row_homogeneous, false)
         set_gtk_property!(newSimFrame2Grid, :row_spacing, 10)
@@ -103,6 +110,7 @@ function SimBioReactorGUI()
         set_gtk_property!(newSimFrame2Grid, :margin_left, 10)
         set_gtk_property!(newSimFrame2Grid, :margin_right, 10)
 
+        # KP
         global newSimFrame3Grid = Grid()
         set_gtk_property!(newSimFrame3Grid, :row_homogeneous, false)
         set_gtk_property!(newSimFrame3Grid, :row_spacing, 10)
@@ -112,6 +120,7 @@ function SimBioReactorGUI()
         set_gtk_property!(newSimFrame3Grid, :margin_left, 10)
         set_gtk_property!(newSimFrame3Grid, :margin_right, 10)
 
+        # RP
         global newSimFrame4Grid = Grid()
         set_gtk_property!(newSimFrame4Grid, :row_homogeneous, false)
         set_gtk_property!(newSimFrame4Grid, :row_spacing, 10)
@@ -121,6 +130,7 @@ function SimBioReactorGUI()
         set_gtk_property!(newSimFrame4Grid, :margin_left, 10)
         set_gtk_property!(newSimFrame4Grid, :margin_right, 10)
 
+        # Buttons sim
         global newSimFrame5Grid = Grid()
         set_gtk_property!(newSimFrame5Grid, :column_homogeneous, true)
         set_gtk_property!(newSimFrame5Grid, :row_homogeneous, true)
@@ -130,6 +140,12 @@ function SimBioReactorGUI()
         set_gtk_property!(newSimFrame5Grid, :margin_bottom, 10)
         set_gtk_property!(newSimFrame5Grid, :margin_left, 10)
         set_gtk_property!(newSimFrame5Grid, :margin_right, 10)
+
+        # Plot sim
+        global newSimFrame6Grid = Grid()
+        set_gtk_property!(newSimFrame6Grid, :column_homogeneous, false)
+        set_gtk_property!(newSimFrame6Grid, :row_homogeneous, false)
+        set_gtk_property!(newSimFrame6Grid, :row_spacing, 10)
 
         ########################################################################
         # Frames
@@ -329,7 +345,7 @@ function SimBioReactorGUI()
         # Kinetic
         ########################################################################
         global newSimKPDataBackup = DataFrames.DataFrame()
-        newSimKPDataBackup.Parameter = ["Ks", "Y", "λ", "β"]
+        newSimKPDataBackup.Parameter = ["Umax","Ks", "Y", "λ", "β"]
         global newSimKPData = DataFrames.DataFrame(
                         Parameter = String[], Value = Float64[])
 
@@ -410,6 +426,15 @@ function SimBioReactorGUI()
                             set_gtk_property!(newSimKPAddWinEntry, :text, "")
                             set_gtk_property!(newSimKPEdit, :sensitive, true)
                             set_gtk_property!(newSimKPClear, :sensitive, true)
+
+                            if size(newSimRPData,1) == 4
+                                if (sum(newSimKPData.Parameter .== "Umax")) == 1 && (sum(newSimKPData.Parameter .== "Ks")) == 1 && (sum(newSimKPData.Parameter .== "Y")) == 1
+                                    set_gtk_property!(newSimRun, :sensitive, true)
+                                    set_gtk_property!(newSimReport, :sensitive, true)
+                                    set_gtk_property!(newSimExport, :sensitive, true)
+                                    set_gtk_property!(newSimClearPlot, :sensitive, true)
+                                end
+                            end
                         catch
                             warn_dialog("Please write a number", newSimKPAddWin)
                             set_gtk_property!(newSimKPAddWinEntry, :text, "")
@@ -448,6 +473,15 @@ function SimBioReactorGUI()
                                 set_gtk_property!(newSimKPEdit, :sensitive, true)
                                 set_gtk_property!(newSimKPClear, :sensitive, true)
                                 set_gtk_property!(newSimKPAddWinEntry, :text, "")
+
+                                if size(newSimRPData,1) == 4
+                                    if (sum(newSimKPData.Parameter .== "Umax")) == 1 && (sum(newSimKPData.Parameter .== "Ks")) == 1 && (sum(newSimKPData.Parameter .== "Y")) == 1
+                                        set_gtk_property!(newSimRun, :sensitive, true)
+                                        set_gtk_property!(newSimReport, :sensitive, true)
+                                        set_gtk_property!(newSimExport, :sensitive, true)
+                                        set_gtk_property!(newSimClearPlot, :sensitive, true)
+                                    end
+                                end
                             catch
                                 warn_dialog("Please write a number", newSimKPAddWin)
                                 set_gtk_property!(newSimKPAddWinEntry, :text, "")
@@ -478,13 +512,13 @@ function SimBioReactorGUI()
         newSimKPEdit = Button("Edit")
         set_gtk_property!(newSimKPEdit, :width_request, 150)
         signal_connect(newSimKPEdit, :clicked) do widget
-            global selmodelKP, newSimKPData, newSimKPList
+            global selmodelKP, newSimKPEditPData, newSimKPEditPList
 
             if hasselection(selmodelKP)
                 editKPWin = Window()
                 set_gtk_property!(editKPWin, :title, "Edit")
                 set_gtk_property!(editKPWin, :window_position, 3)
-                set_gtk_property!(editRPWin, :width_request, 100)
+                set_gtk_property!(editKPWin, :width_request, 100)
                 set_gtk_property!(editKPWin, :height_request, 70)
                 set_gtk_property!(editKPWin, :accept_focus, true)
 
@@ -587,10 +621,14 @@ function SimBioReactorGUI()
             newSimKPData = DataFrames.DataFrame(
                             Parameter = String[], Value = Float64[])
             global newSimKPDataBackup = DataFrames.DataFrame()
-            newSimKPDataBackup.Parameter = ["Ks", "Y", "λ", "β"]
+            newSimKPDataBackup.Parameter = ["Umax","Ks", "Y", "λ", "β"]
 
             set_gtk_property!(newSimKPEdit, :sensitive, false)
             set_gtk_property!(newSimKPClear, :sensitive, false)
+            set_gtk_property!(newSimRun, :sensitive, false)
+            set_gtk_property!(newSimReport, :sensitive, false)
+            set_gtk_property!(newSimExport, :sensitive, false)
+            set_gtk_property!(newSimClearPlot, :sensitive, false)
         end
 
         ########################################################################
@@ -677,6 +715,15 @@ function SimBioReactorGUI()
                             set_gtk_property!(newSimRPAddWinEntry, :text, "")
                             set_gtk_property!(newSimRPEdit, :sensitive, true)
                             set_gtk_property!(newSimRPClear, :sensitive, true)
+
+                            if size(newSimRPData,1) == 4
+                                if (sum(newSimKPData.Parameter .== "Umax")) == 1 && (sum(newSimKPData.Parameter .== "Ks")) == 1 && (sum(newSimKPData.Parameter .== "Y")) == 1
+                                    set_gtk_property!(newSimRun, :sensitive, true)
+                                    set_gtk_property!(newSimReport, :sensitive, true)
+                                    set_gtk_property!(newSimExport, :sensitive, true)
+                                    set_gtk_property!(newSimClearPlot, :sensitive, true)
+                                end
+                            end
                         catch
                             warn_dialog("Please write a number", newSimRPAddWin)
                             set_gtk_property!(newSimRPAddWinEntry, :text, "")
@@ -716,6 +763,15 @@ function SimBioReactorGUI()
                                 set_gtk_property!(newSimRPAddWinEntry, :text, "")
                                 set_gtk_property!(newSimRPEdit, :sensitive, true)
                                 set_gtk_property!(newSimRPClear, :sensitive, true)
+
+                                if size(newSimRPData,1) == 4
+                                    if (sum(newSimKPData.Parameter .== "Umax")) == 1 && (sum(newSimKPData.Parameter .== "Ks")) == 1 && (sum(newSimKPData.Parameter .== "Y")) == 1
+                                        set_gtk_property!(newSimRun, :sensitive, true)
+                                        set_gtk_property!(newSimReport, :sensitive, true)
+                                        set_gtk_property!(newSimExport, :sensitive, true)
+                                        set_gtk_property!(newSimClearPlot, :sensitive, true)
+                                    end
+                                end
                             catch
                                 warn_dialog("Please write a number", newSimRPAddWin)
                                 set_gtk_property!(newSimRPAddWinEntry, :text, "")
@@ -862,6 +918,10 @@ function SimBioReactorGUI()
 
             set_gtk_property!(newSimRPEdit, :sensitive, false)
             set_gtk_property!(newSimRPClear, :sensitive, false)
+            set_gtk_property!(newSimRun, :sensitive, false)
+            set_gtk_property!(newSimReport, :sensitive, false)
+            set_gtk_property!(newSimExport, :sensitive, false)
+            set_gtk_property!(newSimClearPlot, :sensitive, false)
         end
 
         # Signal connect for exit parameter estimation
@@ -873,7 +933,7 @@ function SimBioReactorGUI()
 
         newSimClose = Button("Close")
         signal_connect(newSimClose, :clicked) do widget
-            destroy(newSim)
+            visible(newSim, false)
         end
 
         signal_connect(newSim, "key-press-event") do widget, event
@@ -883,7 +943,149 @@ function SimBioReactorGUI()
         end
 
         newSimRun = Button("Run simulation")
+        signal_connect(newSimRun, :clicked) do widget
+            global newSimRPData, newSimKPData, sol
+            if (sum(newSimKPData.Parameter .== "λ")) == 1 && (sum(newSimKPData.Parameter .== "β")) == 1
+                # Model Equations with all kinetic parameters
+                function batch_model1(du,u,p,t)
+                    # Monod model
+                    U = p[1] * (u[2] / (p[2] + u[2]))
+                    # Growth
+                    du[1] = ((t^2)/(p[4] + t^2))*U*u[1] - p[5]*u[1]
+                    # Substrate
+                    du[2] = -(1/p[3])*U*u[1]
+                end
 
+                # Solving Model
+                # Reactor properties
+                u0X = newSimRPData[newSimRPData.Parameter .== "X[0]", 2]
+                u0S = newSimRPData[newSimRPData.Parameter .== "S[0]", 2]
+                t0 = newSimRPData[newSimRPData.Parameter .== "t[0]", 2]
+                tf = newSimRPData[newSimRPData.Parameter .== "t[f]", 2]
+                u0 = [u0X[1]  u0S[1]]
+                tspan = (t0[1],tf[1])
+
+                # Parameters
+                Umax = newSimKPData[newSimKPData.Parameter .== "Umax", 2]
+                Ks = newSimKPData[newSimKPData.Parameter .== "Ks", 2]
+                Y = newSimKPData[newSimKPData.Parameter .== "Y", 2]
+                λ = newSimKPData[newSimKPData.Parameter .== "λ", 2]
+                β = newSimKPData[newSimKPData.Parameter .== "β", 2]
+                p = [Umax[1], Ks[1], Y[1], λ[1], β[1]]
+
+                # Solving Model
+                prob1 = ODEProblem(batch_model1,u0,tspan, p)
+                sol = solve(prob1, DP5(), saveat = 1)
+                println(1)
+                newSimRunMe()
+            end
+
+            # Model Equations with λ
+            if (sum(newSimKPData.Parameter .== "β")) == 0 && (sum(newSimKPData.Parameter .== "λ")) == 1
+                # Model Equations with λ
+                function batch_model2(du,u,p,t)
+                    # Monod model
+                    U = p[1] * (u[2] / (p[2] + u[2]))
+                    # Growth
+                    du[1] = ((t^2)/(p[4] + t^2))*U*u[1]
+                    # Substrate
+                    du[2] = -(1/p[3])*U*u[1]
+                end
+
+                # Solving Model
+                # Reactor properties
+                u0X = newSimRPData[newSimRPData.Parameter .== "X[0]", 2]
+                u0S = newSimRPData[newSimRPData.Parameter .== "S[0]", 2]
+                t0 = newSimRPData[newSimRPData.Parameter .== "t[0]", 2]
+                tf = newSimRPData[newSimRPData.Parameter .== "t[f]", 2]
+                u0 = [u0X[1]  u0S[1]]
+                tspan = (t0[1],tf[1])
+
+                # Parameters
+                Umax = newSimKPData[newSimKPData.Parameter .== "Umax", 2]
+                Ks = newSimKPData[newSimKPData.Parameter .== "Ks", 2]
+                Y = newSimKPData[newSimKPData.Parameter .== "Y", 2]
+                λ = newSimKPData[newSimKPData.Parameter .== "λ", 2]
+                p = [Umax[1], Ks[1], Y[1], λ[1]]
+
+                # Solving Model
+                prob2 = ODEProblem(batch_model2,u0,tspan, p)
+                sol = solve(prob2, DP5(), saveat = 1)
+                println(2)
+                newSimRunMe()
+            end
+
+            # Model Equations with β
+            if (sum(newSimKPData.Parameter .== "λ")) == 0 && (sum(newSimKPData.Parameter .== "β")) == 1
+                # Model Equations without λ
+                function batch_model3(du,u,p,t)
+                    # Monod model
+                    U = p[1] * (u[2] / (p[2] + u[2]))
+                    # Growth
+                    du[1] = U*u[1] - p[4]*u[1]
+                    # Substrate
+                    du[2] = -(1/p[3])*U*u[1]
+                end
+
+                # Solving Model
+                # Reactor properties
+                u0X = newSimRPData[newSimRPData.Parameter .== "X[0]", 2]
+                u0S = newSimRPData[newSimRPData.Parameter .== "S[0]", 2]
+                t0 = newSimRPData[newSimRPData.Parameter .== "t[0]", 2]
+                tf = newSimRPData[newSimRPData.Parameter .== "t[f]", 2]
+                u0 = [u0X[1]  u0S[1]]
+                tspan = (t0[1],tf[1])
+
+                # Parameters
+                Umax = newSimKPData[newSimKPData.Parameter .== "Umax", 2]
+                Ks = newSimKPData[newSimKPData.Parameter .== "Ks", 2]
+                Y = newSimKPData[newSimKPData.Parameter .== "Y", 2]
+                β = newSimKPData[newSimKPData.Parameter .== "β", 2]
+                p = [Umax[1], Ks[1], Y[1], β[1]]
+
+                # Solving Model
+                prob3 = ODEProblem(batch_model3,u0,tspan, p)
+                sol = solve(prob3, DP5(), saveat = 1)
+                println(3)
+                newSimRunMe()
+            end
+
+            # Model Equations with β & λ
+            if (sum(newSimKPData.Parameter .== "λ")) == 0 && (sum(newSimKPData.Parameter .== "β")) == 0
+                # Model Equations without λ
+                function batch_model4(du,u,p,t)
+                    # Monod model
+                    U = p[1] * (u[2] / (p[2] + u[2]))
+                    # Growth
+                    du[1] = U*u[1]
+                    # Substrate
+                    du[2] = -(1/p[3])*U*u[1]
+                end
+
+                # Solving Model
+                # Reactor properties
+                u0X = newSimRPData[newSimRPData.Parameter .== "X[0]", 2]
+                u0S = newSimRPData[newSimRPData.Parameter .== "S[0]", 2]
+                t0 = newSimRPData[newSimRPData.Parameter .== "t[0]", 2]
+                tf = newSimRPData[newSimRPData.Parameter .== "t[f]", 2]
+                u0 = [u0X[1]  u0S[1]]
+                tspan = (t0[1],tf[1])
+
+                # Parameters
+                Umax = newSimKPData[newSimKPData.Parameter .== "Umax", 2]
+                Ks = newSimKPData[newSimKPData.Parameter .== "Ks", 2]
+                Y = newSimKPData[newSimKPData.Parameter .== "Y", 2]
+                p = [Umax[1], Ks[1], Y[1]]
+
+                # Solving Model
+                prob4 = ODEProblem(batch_model4,u0,tspan, p)
+                sol = solve(prob4, DP5(), saveat = 1)
+                println(4)
+                newSimRunMe()
+            end
+        end
+
+        # TODO Report for sim
         newSimReport = Button("Report")
 
         newSimExport = Button("Export")
@@ -906,6 +1108,52 @@ function SimBioReactorGUI()
         set_gtk_property!(newSimRPClear, :sensitive, false)
 
         visible(newSim, true)
+
+        # TODO plot for sim
+        ####################################################################
+        # Plot
+        ####################################################################
+        function newSimPlot(widget)
+            global sol, tvals, Xvals, Yvals
+            tvals = sol.t
+            Xvals = sol[1,:]
+            Yvals = sol[2,:]
+        end
+
+        function newSimMyDraw(widget)
+            global sol, tvals, Xvals, Yvals
+            ctx = Gtk.getgc(widget)
+            ENV["GKS_WSTYPE"] = "142"
+            ENV["GKSconid"] = @sprintf("%lu", UInt64(ctx.ptr))
+
+            GR.plot(
+                tvals, Xvals,
+                size = [540, 440],
+                xlim = (tvals[1], tvals[end]),
+                ylim = (Xvals[1], ceil(maximum(Xvals)*1.20)),
+                xlabel = "Time",
+                ylabel = "Growth"
+                )
+        end
+
+        #function newSim_on_button_clicked(w)
+        #    newSimPlot(w)
+        #    ctx = Gtk.getgc(newSimCanvas)
+        #    draw(newSimCanvas)
+        #end
+
+        function newSimRunMe()
+            global newSimCanvas
+            newSimCanvas = Canvas(540, 440)
+
+            newSimFrame6Grid[1, 1] = newSimCanvas
+
+            newSimCanvas.draw = newSimMyDraw
+            newSimPlot(newSimCanvas)
+            draw(newSimCanvas)
+            #signal_connect(newSim_on_button_clicked, newSimSim, "clicked")
+            showall(newSim)
+        end
 
         ########################################################################
         # Element location
@@ -948,6 +1196,7 @@ function SimBioReactorGUI()
         push!(newSimWinFrame2, newSimFrame2Grid)
         push!(newSimWinFrame3, newSimFrame3Grid)
         push!(newSimWinFrame4, newSimFrame4Grid)
+        push!(newSimWinFrame8, newSimFrame6Grid)
         push!(newSimWinFrame9, newSimFrame5Grid)
 
         push!(newSim, newSimWinGrid0)
@@ -1907,11 +2156,11 @@ function SimBioReactorGUI()
                 ENV["GKSconid"] = @sprintf("%lu", UInt64(ctx.ptr))
 
                 if fitStatus == 0
-                    plot(
-                        xvals[],
-                        yvals[],
+                    GR.plot(
+                        xvals[], yvals[], "bo",
                         size = [540, 440],
-                        "bo",
+                        xlim = (xvals[][1], xvals[][end]),
+                        ylim = (yvals[][1], ceil(yvals[][end]*1.20)),
                         xlabel = String(labelX),
                         ylabel = String(labelY)
                     )
@@ -1920,8 +2169,7 @@ function SimBioReactorGUI()
                 if fitStatus == 1
                     GR.plot(xvals[], yvals[], size = [540, 440], "bo")
                     GR.oplot(
-                        xvals[],
-                        yFit,
+                        xvals[], yFit,
                         size = [540, 440],
                         xlabel = String(labelX),
                         ylabel = String(labelY)
