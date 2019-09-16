@@ -5,5 +5,8 @@ LsqFit
 DataFrames
 GR
 CSV
+Plots
+Dates
 Mustache
 DefaultApplication
+DifferentialEquations
