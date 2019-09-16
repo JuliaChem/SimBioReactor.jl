@@ -11,7 +11,11 @@ Both sections generates .pdf reports and export figures as .png.
 
 This is an unregistred package. To install on Julia use:
 
-  ] "//github.com/JuliaChem/SimBioReactor.jl"
+    ] "//github.com/JuliaChem/SimBioReactor.jl"
+    
+To run the Graphical User Interface Simulator:
+  
+    SimBioReactorGUI()
 
 # Authors
  - Kelvyn Baruc Sánchez-Sánchez (kelvyn.baruc@gmail.com)
