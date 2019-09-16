@@ -2,9 +2,6 @@ language: julia
 os:
     - windows
 
-julia:
-    - 1.2
-
 env:
   global:
     - PYTHON=conda
