@@ -7,7 +7,9 @@
 Graphical User Interface simulator of biological reactors in pure Julia. It contains two main sections: 1) New simulation and 2) Parameter Estimation. 
 
  - New simulation: allows to simulate batch and continuous bioreactors with different kinetic parameters and reactor properties. 
- - Parameter estimation: allows to load experimental data to fix four predifined models. 
+ - Parameter estimation: allows to load experimental data to fit four predifined models. 
+
+Both sections generates .pdf reports and export figures as .png. 
 
 This is an unregistred package. To install on Julia use:
 
