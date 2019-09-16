@@ -146,6 +146,16 @@ function SimBioReactorGUI()
         set_gtk_property!(newSimFrame6Grid, :column_homogeneous, false)
         set_gtk_property!(newSimFrame6Grid, :row_homogeneous, false)
         set_gtk_property!(newSimFrame6Grid, :row_spacing, 10)
+        set_gtk_property!(newSimFrame6Grid, :margin_bottom, 10)
+
+        # Type of Plot
+        global newSimFrame7Grid = Grid()
+        set_gtk_property!(newSimFrame7Grid, :column_homogeneous, true)
+        set_gtk_property!(newSimFrame7Grid, :column_spacing, 0)
+        set_gtk_property!(newSimFrame7Grid, :margin_top, 10)
+        set_gtk_property!(newSimFrame7Grid, :margin_bottom, 10)
+        set_gtk_property!(newSimFrame7Grid, :margin_left, 120)
+        set_gtk_property!(newSimFrame7Grid, :margin_right, 0)
 
         ########################################################################
         # Frames
@@ -155,7 +165,7 @@ function SimBioReactorGUI()
         set_gtk_property!(newSimWinFrame1, :height_request, 54)
         set_gtk_property!(newSimWinFrame1, :label_xalign, 0.50)
 
-        global newSimWinFrame2 = Frame("Input streams")
+        global newSimWinFrame2 = Frame("Input stream")
         set_gtk_property!(newSimWinFrame2, :width_request, 400)
         set_gtk_property!(newSimWinFrame2, :height_request, 170)
         set_gtk_property!(newSimWinFrame2, :label_xalign, 0.50)
@@ -196,6 +206,11 @@ function SimBioReactorGUI()
         set_gtk_property!(newSimWinFrame9, :width_request, 400)
         set_gtk_property!(newSimWinFrame9, :height_request, 150)
 
+        # Frame for plots
+        global newSimWinFrame10 = Frame()
+        set_gtk_property!(newSimWinFrame10, :width_request, 400)
+        set_gtk_property!(newSimWinFrame10, :height_request, 30)
+
         ########################################################################
         # RadioButtons
         ########################################################################
@@ -210,11 +225,77 @@ function SimBioReactorGUI()
         signal_connect(newSimRadio[1], :clicked) do widget
             newSimTRindex = get_gtk_property(newSimRadio[1], :active, Bool)
 
+            # clear KP
+            global newSimKPDataBackup, newSimKPData
+            empty!(newSimKPList)
+            newSimKPData = DataFrames.DataFrame(
+                            Parameter = String[], Value = Float64[])
+            global newSimKPDataBackup = DataFrames.DataFrame()
+            newSimKPDataBackup.Parameter = ["Umax","Ks", "Y", "λ", "β"]
+
+            set_gtk_property!(newSimKPEdit, :sensitive, false)
+            set_gtk_property!(newSimKPClear, :sensitive, false)
+            set_gtk_property!(newSimRun, :sensitive, false)
+            set_gtk_property!(newSimReport, :sensitive, false)
+            set_gtk_property!(newSimExport, :sensitive, false)
+            set_gtk_property!(newSimClearPlot, :sensitive, false)
+
+            # clear RP
+            global newSimRPDataBackup, newSimRPData
+            empty!(newSimRPList)
+            newSimRPData = DataFrames.DataFrame(
+                            Parameter = String[], Value = Float64[])
+            newSimRPDataBackup = DataFrames.DataFrame()
+
+            if newSimTRindex == true
+                newSimRPDataBackup.Parameter = ["X[0]", "S[0]", "t[0]", "t[f]"]
+            else
+                newSimRPDataBackup.Parameter = ["X[0]", "S[0]", "V", "t[0]", "t[f]"]
+            end
+
+            set_gtk_property!(newSimRPEdit, :sensitive, false)
+            set_gtk_property!(newSimRPClear, :sensitive, false)
+            set_gtk_property!(newSimRun, :sensitive, false)
+            set_gtk_property!(newSimReport, :sensitive, false)
+            set_gtk_property!(newSimExport, :sensitive, false)
+            set_gtk_property!(newSimClearPlot, :sensitive, false)
+            set_gtk_property!(newSimWinFrame10, :sensitive, false)
+
             if newSimTRindex == false
                 set_gtk_property!(newSimInputAdd, :sensitive, true)
             else
+                global newSimInputDataBackup, newSimInputData
+                empty!(newSimInputList)
+                newSimInputData = DataFrames.DataFrame(
+                                Parameter = String[], Value = Float64[])
+                newSimInputDataBackup = DataFrames.DataFrame()
+                newSimInputDataBackup.Parameter = ["F", "S0"]
+
+
+                set_gtk_property!(newSimInputEdit, :sensitive, false)
+                set_gtk_property!(newSimInputClear, :sensitive, false)
+                set_gtk_property!(newSimRun, :sensitive, false)
+                set_gtk_property!(newSimReport, :sensitive, false)
+                set_gtk_property!(newSimExport, :sensitive, false)
+                set_gtk_property!(newSimClearPlot, :sensitive, false)
                 set_gtk_property!(newSimInputAdd, :sensitive, false)
             end
+        end
+
+        ########################################################################
+        # Type of plot
+        ########################################################################
+        global newSimRadioPlot = Vector{RadioButton}(undef, 2)
+        newSimRadioPlot[1] = RadioButton("Growth")
+        newSimFrame7Grid[1, 1] = newSimRadioPlot[1]
+        newSimRadioPlot[2] = RadioButton(newSimRadioPlot[1], "Substrate")
+        newSimFrame7Grid[2, 1] = newSimRadioPlot[2]
+        set_gtk_property!(newSimRadioPlot[1], :active, true)
+
+        signal_connect(newSimRadioPlot[1], :clicked) do widget
+            global newSimPlotIdx
+            newSimPlotIdx = get_gtk_property(newSimRadioPlot[1], :active, Bool)
+            newSimRunMe()
         end
 
         ########################################################################
@@ -224,20 +305,40 @@ function SimBioReactorGUI()
         global newSimISScroll = ScrolledWindow(newSimIS)
 
         # Table for data
-        global newSimISList = ListStore(String, Float64)
+        global newSimInputList = ListStore(String, Float64)
 
         # Visual table
-        global newSimISView = TreeView(TreeModel(newSimISList))
-        set_gtk_property!(newSimISView, :reorderable, true)
+        global newSimInputView = TreeView(TreeModel(newSimInputList))
+        set_gtk_property!(newSimInputView, :reorderable, true)
 
         # Set selectable
-        selmodelIS = G_.selection(newSimISView)
-        set_gtk_property!(newSimISView, :height_request, 340)
+        global selmodelInput = G_.selection(newSimInputView)
+        set_gtk_property!(newSimInputView, :height_request, 340)
 
-        set_gtk_property!(newSimISView, :enable_grid_lines, 3)
-        set_gtk_property!(newSimISView, :expand, true)
+        set_gtk_property!(newSimInputView, :enable_grid_lines, 3)
+        set_gtk_property!(newSimInputView, :expand, true)
 
-        newSimIS[1, 1] = newSimISView
+        rTxtIS = CellRendererText()
+
+        global c1 = TreeViewColumn(
+            "Parameter",
+            rTxtIS,
+            Dict([("text", 0)])
+        )
+        global c2 = TreeViewColumn(
+            "Value",
+            rTxtIS,
+            Dict([("text", 1)])
+        )
+
+            # Allows to select rows
+        for c in [c1, c2]
+            GAccessor.resizable(c, true)
+        end
+
+        push!(newSimInputView, c1, c2)
+
+        newSimIS[1, 1] = newSimInputView
         push!(newSimWinFrame5, newSimISScroll)
 
         ########################################################################
@@ -333,13 +434,296 @@ function SimBioReactorGUI()
         ########################################################################
         # Input
         ########################################################################
+        global newSimInputDataBackup = DataFrames.DataFrame()
+        newSimInputDataBackup.Parameter = ["F", "S0"]
+        global newSimInputData = DataFrames.DataFrame(
+                        Parameter = String[], Value = Float64[])
+
         newSimInputAdd = Button("Add")
         set_gtk_property!(newSimInputAdd, :width_request, 150)
         set_gtk_property!(newSimInputAdd, :sensitive, false)
-        newSimInputDelete = Button("Delete")
-        set_gtk_property!(newSimInputDelete, :width_request, 150)
+        set_gtk_property!(newSimInputAdd, :width_request, 150)
+        signal_connect(newSimInputAdd, :clicked) do widget
+            newSimInputAddWin = Window()
+            set_gtk_property!(newSimInputAddWin, :title, "Load data")
+            set_gtk_property!(newSimInputAddWin, :window_position, 3)
+            set_gtk_property!(newSimInputAddWin, :width_request, 250)
+            set_gtk_property!(newSimInputAddWin, :height_request, 100)
+            set_gtk_property!(newSimInputAddWin, :accept_focus, true)
+
+            newSimInputAddWinGrid = Grid()
+            set_gtk_property!(newSimInputAddWinGrid, :margin_top, 25)
+            set_gtk_property!(newSimInputAddWinGrid, :margin_left, 10)
+            set_gtk_property!(newSimInputAddWinGrid, :margin_right, 10)
+            set_gtk_property!(newSimInputAddWinGrid, :margin_bottom, 10)
+            set_gtk_property!(newSimInputAddWinGrid, :column_spacing, 10)
+            set_gtk_property!(newSimInputAddWinGrid, :row_spacing, 10)
+            set_gtk_property!(
+                    newSimInputAddWinGrid,
+                    :column_homogeneous,
+                    true)
+
+            newSimInputAddWinLabel = Label("Select an option:")
+
+            newSimInputAddWinEntry = Entry()
+            set_gtk_property!(newSimInputAddWinEntry,
+                    :tooltip_markup,
+                    "Enter value"
+                )
+            set_gtk_property!(newSimInputAddWinEntry, :width_request, 150)
+            set_gtk_property!(newSimInputAddWinEntry, :text, "")
+
+            newSimInputAddClose = Button("Close")
+            signal_connect(newSimInputAddClose, :clicked) do widget
+                destroy(newSimInputAddWin)
+            end
+
+            signal_connect(newSimInputAddWin, "key-press-event") do widget, event
+                if event.keyval == 65307
+                    destroy(newSimInputAddWin)
+                end
+            end
+
+            newSimInputAddSet = Button("Set")
+            signal_connect(newSimInputAddSet, :clicked) do widget
+                global newSimInputData, newSimInputDataBackup
+                global Idx = get_gtk_property(newSimInputAddComboBox, :active, Int)
+
+                if Idx == -1
+                    warn_dialog("Please select a parameter!", newSimInputAddWin)
+                else
+                    try
+                        global newSimInputPar
+                        newSimInputPar = get_gtk_property(newSimInputAddWinEntry, :text, String)
+                        numNewPar = parse(Float64, newSimInputPar)
+
+                        newSimL = size(newSimInputData,1)
+                        push!(newSimInputData, (newSimInputDataBackup[Idx+1,1], numNewPar))
+                        push!(newSimInputList, (newSimInputData.Parameter[newSimL+1,1], numNewPar))
+
+                        DataFrames.deleterows!(newSimInputDataBackup, Idx+1)
+
+                        empty!(newSimInputAddComboBox)
+                        for choice in newSimInputDataBackup.Parameter
+                            push!(newSimInputAddComboBox, choice)
+                        end
+
+                        if size(newSimInputDataBackup,1) == 0
+                            destroy(newSimInputAddWin)
+                        end
+                        set_gtk_property!(newSimInputAddWinEntry, :text, "")
+                        set_gtk_property!(newSimInputEdit, :sensitive, true)
+                        set_gtk_property!(newSimInputClear, :sensitive, true)
+                        set_gtk_property!(newSimClearPlot, :sensitive, true)
+                        set_gtk_property!(newSimInputAddComboBox, :active, 0)
+
+                        # if size(newSimInputData,1) == 4
+                        #     if (sum(newSimInputData.Parameter .== "Umax")) == 1 && (sum(newSimInputData.Parameter .== "Ks")) == 1 && (sum(newSimInputData.Parameter .== "Y")) == 1
+                        #         set_gtk_property!(newSimRun, :sensitive, true)
+                        #         set_gtk_property!(newSimReport, :sensitive, true)
+                        #         set_gtk_property!(newSimExport, :sensitive, true)
+                        #         set_gtk_property!(newSimClearPlot, :sensitive, true)
+                        #     end
+                        # end
+                    catch
+                        warn_dialog("Please write a number", newSimInputAddWin)
+                        set_gtk_property!(newSimInputAddWinEntry, :text, "")
+                    end
+                end
+            end
+
+            signal_connect(newSimInputAddWin, "key-press-event") do widget, event
+                global newSimInputData, newSimInputDataBackup
+                if event.keyval == 65293
+                    global Idx = get_gtk_property(newSimInputAddComboBox, :active, Int)
+
+                    if Idx == -1
+                        warn_dialog("Please select a parameter!", newSimInputAddWin)
+                    else
+                        try
+                            global newSimInputPar
+                            newSimInputPar = get_gtk_property(newSimInputAddWinEntry, :text, String)
+                            numNewPar = parse(Float64, newSimInputPar)
+
+                            newSimL = size(newSimInputData,1)
+                            push!(newSimInputData, (newSimInputDataBackup[Idx+1,1], numNewPar))
+                            push!(newSimInputList, (newSimInputData.Parameter[newSimL+1,1], numNewPar))
+
+                            DataFrames.deleterows!(newSimInputDataBackup, Idx+1)
+
+                            empty!(newSimInputAddComboBox)
+                            for choice in newSimInputDataBackup.Parameter
+                                push!(newSimInputAddComboBox, choice)
+                            end
+
+                            if size(newSimInputDataBackup,1) == 0
+                                destroy(newSimInputAddWin)
+                            end
+
+                            set_gtk_property!(newSimInputEdit, :sensitive, true)
+                            set_gtk_property!(newSimInputClear, :sensitive, true)
+                            set_gtk_property!(newSimClearPlot, :sensitive, true)
+                            set_gtk_property!(newSimInputAddWinEntry, :text, "")
+                            set_gtk_property!(newSimInputAddComboBox, :active, 0)
+
+                            # if size(newSimRPData,1) == 4
+                            #     if (sum(newSimKPData.Parameter .== "Umax")) == 1 && (sum(newSimKPData.Parameter .== "Ks")) == 1 && (sum(newSimKPData.Parameter .== "Y")) == 1
+                            #         set_gtk_property!(newSimRun, :sensitive, true)
+                            #         set_gtk_property!(newSimReport, :sensitive, true)
+                            #         set_gtk_property!(newSimExport, :sensitive, true)
+                            #         set_gtk_property!(newSimClearPlot, :sensitive, true)
+                            #     end
+                            # end
+                        catch
+                            warn_dialog("Please write a number", newSimInputAddWin)
+                            set_gtk_property!(newSimInputAddWinEntry, :text, "")
+                        end
+                    end
+                end
+            end
+
+            newSimInputAddComboBox = GtkComboBoxText()
+            for choice in newSimInputDataBackup.Parameter
+                push!(newSimInputAddComboBox, choice)
+            end
+
+            # Lets set the active element to be "0"
+            set_gtk_property!(newSimInputAddComboBox, :active, 0)
+
+            newSimInputAddWinGrid[1:2, 1] = newSimInputAddWinLabel
+            newSimInputAddWinGrid[1:2, 2] = newSimInputAddComboBox
+            newSimInputAddWinGrid[1:2, 3] = newSimInputAddWinEntry
+            newSimInputAddWinGrid[1, 4] = newSimInputAddClose
+            newSimInputAddWinGrid[2, 4] = newSimInputAddSet
+
+            push!(newSimInputAddWin, newSimInputAddWinGrid)
+            showall(newSimInputAddWin)
+        end
+
+        # Edit vapues for input properties
+        newSimInputEdit = Button("Edit")
+        set_gtk_property!(newSimInputEdit, :width_request, 150)
+        set_gtk_property!(newSimInputEdit, :width_request, 150)
+        signal_connect(newSimInputEdit, :clicked) do widget
+            global selmodelInput, newSimInputData, newSimInputList
+
+            if hasselection(selmodelInput)
+                editInputWin = Window()
+                set_gtk_property!(editInputWin, :title, "Edit")
+                set_gtk_property!(editInputWin, :window_position, 3)
+                set_gtk_property!(editInputWin, :width_request, 100)
+                set_gtk_property!(editInputWin, :height_request, 70)
+                set_gtk_property!(editInputWin, :accept_focus, true)
+
+                editInputWinGrid = Grid()
+                set_gtk_property!(editInputWinGrid, :margin_top, 25)
+                set_gtk_property!(editInputWinGrid, :margin_left, 10)
+                set_gtk_property!(editInputWinGrid, :margin_right, 10)
+                set_gtk_property!(editInputWinGrid, :margin_bottom, 10)
+                set_gtk_property!(editInputWinGrid, :column_spacing, 10)
+                set_gtk_property!(editInputWinGrid, :row_spacing, 10)
+                set_gtk_property!(editInputWinGrid, :column_homogeneous, true)
+
+                editInputEntry = Entry()
+                set_gtk_property!(editInputEntry, :tooltip_markup, "Enter value")
+                set_gtk_property!(editInputEntry, :width_request, 80)
+                set_gtk_property!(editInputEntry, :text, "")
+
+                editInputLabel = Label("")
+                global editInputIndex = Gtk.index_from_iter(newSimInputList,
+                                        selected(selmodelInput))
+                set_gtk_property!(
+                editInputLabel, :label,
+                string("Parameter ", newSimInputData[editInputIndex,1], " ="))
+
+                editInputWinClose = Button("Close")
+                signal_connect(editInputWinClose, :clicked) do widget
+                    destroy(editInputWin)
+                end
+
+                # Set button to apply values
+                editInputSet = Button("Set")
+                signal_connect(editInputSet, :clicked) do widget
+                    global newSimInputData, newSimInputList, editInputIndex
+                    # Check for non a number
+                    try
+                        global newPar
+                        newPar = get_gtk_property(editInputEntry, :text, String)
+                        numNewPar = parse(Float64, newPar)
+                        idx = editInputIndex
+                        newSimInputData[idx,2] = numNewPar
+
+                        for i=1:2
+                            newSimRPList[idx, i] = newSimInputData[idx,i]
+                        end
+
+                        destroy(editInputWin)
+                    catch
+                        warn_dialog("Please write a number", editInputWin)
+                        set_gtk_property!(editInputEntry, :text, "")
+                    end
+                end
+
+                # Same action as set
+                signal_connect(editInputWin, "key-press-event") do widget, event
+                    global newSimInputData, newSimInputList, editInputIndex
+                    if event.keyval == 65293
+                        # Check for non a number
+                        try
+                            global newPar
+                            newPar = get_gtk_property(editInputEntry, :text, String)
+                            numNewPar = parse(Float64, newPar)
+                            idx = editInputIndex
+                            newSimInputData[idx,2] = numNewPar
+
+                            for i=1:2
+                                newSimInputList[idx, i] = newSimInputData[idx,i]
+                            end
+
+                            destroy(editInputWin)
+                        catch
+                            warn_dialog("Please write a number", editInputWin)
+                            set_gtk_property!(editInputEntry, :text, "")
+                        end
+                    end
+                end
+
+                signal_connect(editInputWin, "key-press-event") do widget, event
+                    if event.keyval == 65307
+                        destroy(editInputWin)
+                    end
+                end
+
+                editInputWinGrid[1, 1] = editInputLabel
+                editInputWinGrid[1, 2] = editInputEntry
+                editInputWinGrid[1, 4] = editInputWinClose
+                editInputWinGrid[1, 3] = editInputSet
+
+                push!(editInputWin, editInputWinGrid)
+                showall(editInputWin)
+            else
+                warn_dialog("Please select a parameter!", editInputWin)
+            end
+        end
+
         newSimInputClear = Button("Clear")
         set_gtk_property!(newSimInputClear, :width_request, 150)
+        signal_connect(newSimInputClear, :clicked) do widget
+            global newSimInputDataBackup, newSimInputData
+            empty!(newSimInputList)
+            newSimInputData = DataFrames.DataFrame(
+                            Parameter = String[], Value = Float64[])
+            newSimInputDataBackup = DataFrames.DataFrame()
+            newSimInputDataBackup.Parameter = ["F", "S0"]
+
+
+            set_gtk_property!(newSimInputEdit, :sensitive, false)
+            set_gtk_property!(newSimInputClear, :sensitive, false)
+            set_gtk_property!(newSimRun, :sensitive, false)
+            set_gtk_property!(newSimReport, :sensitive, false)
+            set_gtk_property!(newSimExport, :sensitive, false)
+            set_gtk_property!(newSimClearPlot, :sensitive, false)
+        end
 
         ########################################################################
         # Kinetic
@@ -349,56 +733,102 @@ function SimBioReactorGUI()
         global newSimKPData = DataFrames.DataFrame(
                         Parameter = String[], Value = Float64[])
 
-        # TODO hange variables to KP
         newSimKPAdd = Button("Add")
         set_gtk_property!(newSimKPAdd, :width_request, 150)
         signal_connect(newSimKPAdd, :clicked) do widget
-            if newSimTRindex == true
-                newSimKPAddWin = Window()
-                set_gtk_property!(newSimKPAddWin, :title, "Load data")
-                set_gtk_property!(newSimKPAddWin, :window_position, 3)
-                set_gtk_property!(newSimKPAddWin, :width_request, 250)
-                set_gtk_property!(newSimKPAddWin, :height_request, 100)
-                set_gtk_property!(newSimKPAddWin, :accept_focus, true)
+            newSimKPAddWin = Window()
+            set_gtk_property!(newSimKPAddWin, :title, "Load data")
+            set_gtk_property!(newSimKPAddWin, :window_position, 3)
+            set_gtk_property!(newSimKPAddWin, :width_request, 250)
+            set_gtk_property!(newSimKPAddWin, :height_request, 100)
+            set_gtk_property!(newSimKPAddWin, :accept_focus, true)
 
-                newSimKPAddWinGrid = Grid()
-                set_gtk_property!(newSimKPAddWinGrid, :margin_top, 25)
-                set_gtk_property!(newSimKPAddWinGrid, :margin_left, 10)
-                set_gtk_property!(newSimKPAddWinGrid, :margin_right, 10)
-                set_gtk_property!(newSimKPAddWinGrid, :margin_bottom, 10)
-                set_gtk_property!(newSimKPAddWinGrid, :column_spacing, 10)
-                set_gtk_property!(newSimKPAddWinGrid, :row_spacing, 10)
-                set_gtk_property!(
+            newSimKPAddWinGrid = Grid()
+            set_gtk_property!(newSimKPAddWinGrid, :margin_top, 25)
+            set_gtk_property!(newSimKPAddWinGrid, :margin_left, 10)
+            set_gtk_property!(newSimKPAddWinGrid, :margin_right, 10)
+            set_gtk_property!(newSimKPAddWinGrid, :margin_bottom, 10)
+            set_gtk_property!(newSimKPAddWinGrid, :column_spacing, 10)
+            set_gtk_property!(newSimKPAddWinGrid, :row_spacing, 10)
+            set_gtk_property!(
                     newSimKPAddWinGrid,
                     :column_homogeneous,
                     true
                 )
 
-                newSimKPAddWinLabel = Label("Select an option:")
+            newSimKPAddWinLabel = Label("Select an option:")
 
-                newSimKPAddWinEntry = Entry()
-                set_gtk_property!(
-                    newSimKPAddWinEntry,
-                    :tooltip_markup,
-                    "Enter value"
+            newSimKPAddWinEntry = Entry()
+            set_gtk_property!(
+                newSimKPAddWinEntry,
+                :tooltip_markup,
+                "Enter value"
                 )
-                set_gtk_property!(newSimKPAddWinEntry, :width_request, 150)
-                set_gtk_property!(newSimKPAddWinEntry, :text, "")
+            set_gtk_property!(newSimKPAddWinEntry, :width_request, 150)
+            set_gtk_property!(newSimKPAddWinEntry, :text, "")
 
-                newSimKPAddClose = Button("Close")
-                signal_connect(newSimKPAddClose, :clicked) do widget
+            newSimKPAddClose = Button("Close")
+            signal_connect(newSimKPAddClose, :clicked) do widget
+                destroy(newSimKPAddWin)
+            end
+
+            signal_connect(newSimKPAddWin, "key-press-event") do widget, event
+                if event.keyval == 65307
                     destroy(newSimKPAddWin)
                 end
+            end
 
-                signal_connect(newSimKPAddWin, "key-press-event") do widget, event
-                    if event.keyval == 65307
-                        destroy(newSimKPAddWin)
+            newSimKPAddSet = Button("Set")
+            signal_connect(newSimKPAddSet, :clicked) do widget
+                global newSimKPData, newSimKPDataBackup
+                global Idx = get_gtk_property(newSimKPAddComboBox, :active, Int)
+
+                if Idx == -1
+                    warn_dialog("Please select a parameter!", newSimKPAddWin)
+                else
+                    try
+                        global newSimKPPar
+                        newSimKPPar = get_gtk_property(newSimKPAddWinEntry, :text, String)
+                        numNewPar = parse(Float64, newSimKPPar)
+
+                        newSimL = size(newSimKPData,1)
+                        push!(newSimKPData, (newSimKPDataBackup[Idx+1,1], numNewPar))
+                        push!(newSimKPList, (newSimKPData.Parameter[newSimL+1,1], numNewPar))
+
+                        DataFrames.deleterows!(newSimKPDataBackup, Idx+1)
+
+                        empty!(newSimKPAddComboBox)
+                        for choice in newSimKPDataBackup.Parameter
+                            push!(newSimKPAddComboBox, choice)
+                        end
+
+                        if size(newSimKPDataBackup,1) == 0
+                            destroy(newSimKPAddWin)
+                        end
+                        set_gtk_property!(newSimKPAddWinEntry, :text, "")
+                        set_gtk_property!(newSimKPEdit, :sensitive, true)
+                        set_gtk_property!(newSimKPClear, :sensitive, true)
+                        set_gtk_property!(newSimClearPlot, :sensitive, true)
+                        set_gtk_property!(newSimKPAddComboBox, :active, 0)
+
+                        if size(newSimRPData,1) == 4
+                            if (sum(newSimKPData.Parameter .== "Umax")) == 1 && (sum(newSimKPData.Parameter .== "Ks")) == 1 && (sum(newSimKPData.Parameter .== "Y")) == 1
+                                set_gtk_property!(newSimRun, :sensitive, true)
+                                set_gtk_property!(newSimReport, :sensitive, true)
+                                set_gtk_property!(newSimExport, :sensitive, true)
+                                set_gtk_property!(newSimClearPlot, :sensitive, true)
+                            end
+                        end
+                    catch
+                        warn_dialog("Please write a number", newSimKPAddWin)
+                        set_gtk_property!(newSimKPAddWinEntry, :text, "")
                     end
                 end
+            end
 
-                newSimKPAddSet = Button("Set")
-                signal_connect(newSimKPAddSet, :clicked) do widget
-                    global newSimKPData, newSimKPDataBackup
+            signal_connect(newSimKPAddWin, "key-press-event") do widget, event
+                global newSimKPData, newSimKPDataBackup
+                if event.keyval == 65293
                     global Idx = get_gtk_property(newSimKPAddComboBox, :active, Int)
 
                     if Idx == -1
@@ -423,9 +853,12 @@ function SimBioReactorGUI()
                             if size(newSimKPDataBackup,1) == 0
                                 destroy(newSimKPAddWin)
                             end
-                            set_gtk_property!(newSimKPAddWinEntry, :text, "")
+
                             set_gtk_property!(newSimKPEdit, :sensitive, true)
                             set_gtk_property!(newSimKPClear, :sensitive, true)
+                            set_gtk_property!(newSimClearPlot, :sensitive, true)
+                            set_gtk_property!(newSimKPAddWinEntry, :text, "")
+                            set_gtk_property!(newSimKPAddComboBox, :active, 0)
 
                             if size(newSimRPData,1) == 4
                                 if (sum(newSimKPData.Parameter .== "Umax")) == 1 && (sum(newSimKPData.Parameter .== "Ks")) == 1 && (sum(newSimKPData.Parameter .== "Y")) == 1
@@ -441,72 +874,24 @@ function SimBioReactorGUI()
                         end
                     end
                 end
-
-                signal_connect(newSimKPAddWin, "key-press-event") do widget, event
-                    global newSimKPData, newSimKPDataBackup
-                    if event.keyval == 65293
-                        global Idx = get_gtk_property(newSimKPAddComboBox, :active, Int)
-
-                        if Idx == -1
-                            warn_dialog("Please select a parameter!", newSimKPAddWin)
-                        else
-                            try
-                                global newSimKPPar
-                                newSimKPPar = get_gtk_property(newSimKPAddWinEntry, :text, String)
-                                numNewPar = parse(Float64, newSimKPPar)
-
-                                newSimL = size(newSimKPData,1)
-                                push!(newSimKPData, (newSimKPDataBackup[Idx+1,1], numNewPar))
-                                push!(newSimKPList, (newSimKPData.Parameter[newSimL+1,1], numNewPar))
-
-                                DataFrames.deleterows!(newSimKPDataBackup, Idx+1)
-
-                                empty!(newSimKPAddComboBox)
-                                for choice in newSimKPDataBackup.Parameter
-                                    push!(newSimKPAddComboBox, choice)
-                                end
-
-                                if size(newSimKPDataBackup,1) == 0
-                                    destroy(newSimKPAddWin)
-                                end
-
-                                set_gtk_property!(newSimKPEdit, :sensitive, true)
-                                set_gtk_property!(newSimKPClear, :sensitive, true)
-                                set_gtk_property!(newSimKPAddWinEntry, :text, "")
-
-                                if size(newSimRPData,1) == 4
-                                    if (sum(newSimKPData.Parameter .== "Umax")) == 1 && (sum(newSimKPData.Parameter .== "Ks")) == 1 && (sum(newSimKPData.Parameter .== "Y")) == 1
-                                        set_gtk_property!(newSimRun, :sensitive, true)
-                                        set_gtk_property!(newSimReport, :sensitive, true)
-                                        set_gtk_property!(newSimExport, :sensitive, true)
-                                        set_gtk_property!(newSimClearPlot, :sensitive, true)
-                                    end
-                                end
-                            catch
-                                warn_dialog("Please write a number", newSimKPAddWin)
-                                set_gtk_property!(newSimKPAddWinEntry, :text, "")
-                            end
-                        end
-                    end
-                end
-
-                newSimKPAddComboBox = GtkComboBoxText()
-                for choice in newSimKPDataBackup.Parameter
-                    push!(newSimKPAddComboBox, choice)
-                end
-
-                # Lets set the active element to be "0"
-                set_gtk_property!(newSimKPAddComboBox, :active, -1)
-
-                newSimKPAddWinGrid[1:2, 1] = newSimKPAddWinLabel
-                newSimKPAddWinGrid[1:2, 2] = newSimKPAddComboBox
-                newSimKPAddWinGrid[1:2, 3] = newSimKPAddWinEntry
-                newSimKPAddWinGrid[1, 4] = newSimKPAddClose
-                newSimKPAddWinGrid[2, 4] = newSimKPAddSet
-
-                push!(newSimKPAddWin, newSimKPAddWinGrid)
-                showall(newSimKPAddWin)
             end
+
+            newSimKPAddComboBox = GtkComboBoxText()
+            for choice in newSimKPDataBackup.Parameter
+                push!(newSimKPAddComboBox, choice)
+            end
+
+            # Lets set the active element to be "0"
+            set_gtk_property!(newSimKPAddComboBox, :active, 0)
+
+            newSimKPAddWinGrid[1:2, 1] = newSimKPAddWinLabel
+            newSimKPAddWinGrid[1:2, 2] = newSimKPAddComboBox
+            newSimKPAddWinGrid[1:2, 3] = newSimKPAddWinEntry
+            newSimKPAddWinGrid[1, 4] = newSimKPAddClose
+            newSimKPAddWinGrid[2, 4] = newSimKPAddSet
+
+            push!(newSimKPAddWin, newSimKPAddWinGrid)
+            showall(newSimKPAddWin)
         end
 
         newSimKPEdit = Button("Edit")
@@ -635,66 +1020,119 @@ function SimBioReactorGUI()
         # Reactor properties
         ########################################################################
         global newSimRPDataBackup = DataFrames.DataFrame()
-        newSimRPDataBackup.Parameter = ["X[0]", "S[0]", "t[0]", "t[f]"]
+
+        if newSimTRindex == true
+            newSimRPDataBackup.Parameter = ["X[0]", "S[0]", "t[0]", "t[f]"]
+        else
+            newSimRPDataBackup.Parameter = ["X[0]", "S[0]", "V", "t[0]", "t[f]"]
+        end
+
         global newSimRPData = DataFrames.DataFrame(
                         Parameter = String[], Value = Float64[])
 
         newSimRPAdd = Button("Add")
         set_gtk_property!(newSimRPAdd, :width_request, 150)
         signal_connect(newSimRPAdd, :clicked) do widget
-            if newSimTRindex == true
-                newSimRPAddWin = Window()
-                set_gtk_property!(newSimRPAddWin, :title, "Load data")
-                set_gtk_property!(newSimRPAddWin, :window_position, 3)
-                set_gtk_property!(newSimRPAddWin, :width_request, 250)
-                set_gtk_property!(newSimRPAddWin, :height_request, 100)
-                set_gtk_property!(newSimRPAddWin, :accept_focus, true)
+            newSimRPAddWin = Window()
+            set_gtk_property!(newSimRPAddWin, :title, "Load data")
+            set_gtk_property!(newSimRPAddWin, :window_position, 3)
+            set_gtk_property!(newSimRPAddWin, :width_request, 250)
+            set_gtk_property!(newSimRPAddWin, :height_request, 100)
+            set_gtk_property!(newSimRPAddWin, :accept_focus, true)
 
-                newSimRPAddWinGrid = Grid()
-                set_gtk_property!(newSimRPAddWinGrid, :margin_top, 25)
-                set_gtk_property!(newSimRPAddWinGrid, :margin_left, 10)
-                set_gtk_property!(newSimRPAddWinGrid, :margin_right, 10)
-                set_gtk_property!(newSimRPAddWinGrid, :margin_bottom, 10)
-                set_gtk_property!(newSimRPAddWinGrid, :column_spacing, 10)
-                set_gtk_property!(newSimRPAddWinGrid, :row_spacing, 10)
-                set_gtk_property!(
-                    newSimRPAddWinGrid,
-                    :column_homogeneous,
-                    true
-                )
+            newSimRPAddWinGrid = Grid()
+            set_gtk_property!(newSimRPAddWinGrid, :margin_top, 25)
+            set_gtk_property!(newSimRPAddWinGrid, :margin_left, 10)
+            set_gtk_property!(newSimRPAddWinGrid, :margin_right, 10)
+            set_gtk_property!(newSimRPAddWinGrid, :margin_bottom, 10)
+            set_gtk_property!(newSimRPAddWinGrid, :column_spacing, 10)
+            set_gtk_property!(newSimRPAddWinGrid, :row_spacing, 10)
+            set_gtk_property!(
+                newSimRPAddWinGrid,
+                :column_homogeneous,
+                true
+            )
 
-                newSimRPAddWinLabel = Label("Select an option:")
+            newSimRPAddWinLabel = Label("Select an option:")
 
-                newSimRPAddWinEntry = Entry()
-                set_gtk_property!(
-                    newSimRPAddWinEntry,
-                    :tooltip_markup,
-                    "Enter value"
-                )
-                set_gtk_property!(newSimRPAddWinEntry, :width_request, 150)
-                set_gtk_property!(newSimRPAddWinEntry, :text, "")
+            newSimRPAddWinEntry = Entry()
+            set_gtk_property!(
+                newSimRPAddWinEntry,
+                :tooltip_markup,
+                "Enter value"
+            )
+            set_gtk_property!(newSimRPAddWinEntry, :width_request, 150)
+            set_gtk_property!(newSimRPAddWinEntry, :text, "")
 
-                newSimRPAddClose = Button("Close")
-                signal_connect(newSimRPAddClose, :clicked) do widget
+            newSimRPAddClose = Button("Close")
+            signal_connect(newSimRPAddClose, :clicked) do widget
+                destroy(newSimRPAddWin)
+            end
+
+            signal_connect(newSimRPAddWin, "key-press-event") do widget, event
+                if event.keyval == 65307
                     destroy(newSimRPAddWin)
                 end
+            end
 
-                signal_connect(newSimRPAddWin, "key-press-event") do widget, event
-                    if event.keyval == 65307
-                        destroy(newSimRPAddWin)
+            newSimRPAddSet = Button("Set")
+            signal_connect(newSimRPAddSet, :clicked) do widget
+                global newSimRPData, newSimRPDataBackup
+                global Idx = get_gtk_property(newSimRPAddComboBox, :active, Int)
+
+                if Idx == -1
+                    warn_dialog("Please select a parameter!", newSimRPAddWin)
+                else
+                    try
+                        global newSimRPPar, newSimRPEdit
+                        newSimRPPar = get_gtk_property(newSimRPAddWinEntry, :text, String)
+                        numNewPar = parse(Float64, newSimRPPar)
+
+                        newSimL = size(newSimRPData,1)
+                        push!(newSimRPData, (newSimRPDataBackup[Idx+1,1], numNewPar))
+                        push!(newSimRPList, (newSimRPData.Parameter[newSimL+1,1], numNewPar))
+
+                        DataFrames.deleterows!(newSimRPDataBackup, Idx+1)
+
+                        empty!(newSimRPAddComboBox)
+                        for choice in newSimRPDataBackup.Parameter
+                            push!(newSimRPAddComboBox, choice)
+                        end
+
+                        if size(newSimRPDataBackup,1) == 0
+                            destroy(newSimRPAddWin)
+                        end
+                        set_gtk_property!(newSimRPAddWinEntry, :text, "")
+                        set_gtk_property!(newSimRPEdit, :sensitive, true)
+                        set_gtk_property!(newSimRPClear, :sensitive, true)
+                        set_gtk_property!(newSimClearPlot, :sensitive, true)
+                        set_gtk_property!(newSimRPAddComboBox, :active, 0)
+
+                        if size(newSimRPData,1) == 4
+                            if (sum(newSimKPData.Parameter .== "Umax")) == 1 && (sum(newSimKPData.Parameter .== "Ks")) == 1 && (sum(newSimKPData.Parameter .== "Y")) == 1
+                                set_gtk_property!(newSimRun, :sensitive, true)
+                                set_gtk_property!(newSimReport, :sensitive, true)
+                                set_gtk_property!(newSimExport, :sensitive, true)
+                                set_gtk_property!(newSimClearPlot, :sensitive, true)
+                            end
+                        end
+                    catch
+                        warn_dialog("Please write a number", newSimRPAddWin)
+                        set_gtk_property!(newSimRPAddWinEntry, :text, "")
                     end
                 end
+            end
 
-                newSimRPAddSet = Button("Set")
-                signal_connect(newSimRPAddSet, :clicked) do widget
-                    global newSimRPData, newSimRPDataBackup
+            signal_connect(newSimRPAddWin, "key-press-event") do widget, event
+                global newSimRPData, newSimRPDataBackup
+                if event.keyval == 65293
                     global Idx = get_gtk_property(newSimRPAddComboBox, :active, Int)
 
                     if Idx == -1
                         warn_dialog("Please select a parameter!", newSimRPAddWin)
                     else
                         try
-                            global newSimRPPar, newSimRPEdit
+                            global newSimRPPar
                             newSimRPPar = get_gtk_property(newSimRPAddWinEntry, :text, String)
                             numNewPar = parse(Float64, newSimRPPar)
 
@@ -705,6 +1143,7 @@ function SimBioReactorGUI()
                             DataFrames.deleterows!(newSimRPDataBackup, Idx+1)
 
                             empty!(newSimRPAddComboBox)
+
                             for choice in newSimRPDataBackup.Parameter
                                 push!(newSimRPAddComboBox, choice)
                             end
@@ -712,9 +1151,12 @@ function SimBioReactorGUI()
                             if size(newSimRPDataBackup,1) == 0
                                 destroy(newSimRPAddWin)
                             end
+
                             set_gtk_property!(newSimRPAddWinEntry, :text, "")
                             set_gtk_property!(newSimRPEdit, :sensitive, true)
                             set_gtk_property!(newSimRPClear, :sensitive, true)
+                            set_gtk_property!(newSimClearPlot, :sensitive, true)
+                            set_gtk_property!(newSimRPAddComboBox, :active, 0)
 
                             if size(newSimRPData,1) == 4
                                 if (sum(newSimKPData.Parameter .== "Umax")) == 1 && (sum(newSimKPData.Parameter .== "Ks")) == 1 && (sum(newSimKPData.Parameter .== "Y")) == 1
@@ -727,78 +1169,29 @@ function SimBioReactorGUI()
                         catch
                             warn_dialog("Please write a number", newSimRPAddWin)
                             set_gtk_property!(newSimRPAddWinEntry, :text, "")
+                            set_gtk_property!(newSimRPEdit, :sensitive, true)
+                            set_gtk_property!(newSimRPClear, :sensitive, true)
                         end
                     end
                 end
-
-                signal_connect(newSimRPAddWin, "key-press-event") do widget, event
-                    global newSimRPData, newSimRPDataBackup
-                    if event.keyval == 65293
-                        global Idx = get_gtk_property(newSimRPAddComboBox, :active, Int)
-
-                        if Idx == -1
-                            warn_dialog("Please select a parameter!", newSimRPAddWin)
-                        else
-                            try
-                                global newSimRPPar
-                                newSimRPPar = get_gtk_property(newSimRPAddWinEntry, :text, String)
-                                numNewPar = parse(Float64, newSimRPPar)
-
-                                newSimL = size(newSimRPData,1)
-                                push!(newSimRPData, (newSimRPDataBackup[Idx+1,1], numNewPar))
-                                push!(newSimRPList, (newSimRPData.Parameter[newSimL+1,1], numNewPar))
-
-                                DataFrames.deleterows!(newSimRPDataBackup, Idx+1)
-
-                                empty!(newSimRPAddComboBox)
-
-                                for choice in newSimRPDataBackup.Parameter
-                                    push!(newSimRPAddComboBox, choice)
-                                end
-
-                                if size(newSimRPDataBackup,1) == 0
-                                    destroy(newSimRPAddWin)
-                                end
-
-                                set_gtk_property!(newSimRPAddWinEntry, :text, "")
-                                set_gtk_property!(newSimRPEdit, :sensitive, true)
-                                set_gtk_property!(newSimRPClear, :sensitive, true)
-
-                                if size(newSimRPData,1) == 4
-                                    if (sum(newSimKPData.Parameter .== "Umax")) == 1 && (sum(newSimKPData.Parameter .== "Ks")) == 1 && (sum(newSimKPData.Parameter .== "Y")) == 1
-                                        set_gtk_property!(newSimRun, :sensitive, true)
-                                        set_gtk_property!(newSimReport, :sensitive, true)
-                                        set_gtk_property!(newSimExport, :sensitive, true)
-                                        set_gtk_property!(newSimClearPlot, :sensitive, true)
-                                    end
-                                end
-                            catch
-                                warn_dialog("Please write a number", newSimRPAddWin)
-                                set_gtk_property!(newSimRPAddWinEntry, :text, "")
-                                set_gtk_property!(newSimRPEdit, :sensitive, true)
-                                set_gtk_property!(newSimRPClear, :sensitive, true)
-                            end
-                        end
-                    end
-                end
-
-                newSimRPAddComboBox = GtkComboBoxText()
-                for choice in newSimRPDataBackup.Parameter
-                    push!(newSimRPAddComboBox, choice)
-                end
-
-                # Lets set the active element to be "0"
-                set_gtk_property!(newSimRPAddComboBox, :active, -1)
-
-                newSimRPAddWinGrid[1:2, 1] = newSimRPAddWinLabel
-                newSimRPAddWinGrid[1:2, 2] = newSimRPAddComboBox
-                newSimRPAddWinGrid[1:2, 3] = newSimRPAddWinEntry
-                newSimRPAddWinGrid[1, 4] = newSimRPAddClose
-                newSimRPAddWinGrid[2, 4] = newSimRPAddSet
-
-                push!(newSimRPAddWin, newSimRPAddWinGrid)
-                showall(newSimRPAddWin)
             end
+
+            newSimRPAddComboBox = GtkComboBoxText()
+            for choice in newSimRPDataBackup.Parameter
+                push!(newSimRPAddComboBox, choice)
+            end
+
+            # Lets set the active element to be "0"
+            set_gtk_property!(newSimRPAddComboBox, :active, 0)
+
+            newSimRPAddWinGrid[1:2, 1] = newSimRPAddWinLabel
+            newSimRPAddWinGrid[1:2, 2] = newSimRPAddComboBox
+            newSimRPAddWinGrid[1:2, 3] = newSimRPAddWinEntry
+            newSimRPAddWinGrid[1, 4] = newSimRPAddClose
+            newSimRPAddWinGrid[2, 4] = newSimRPAddSet
+
+            push!(newSimRPAddWin, newSimRPAddWinGrid)
+            showall(newSimRPAddWin)
         end
 
         # Edit vapues for reactor properties
@@ -909,12 +1302,17 @@ function SimBioReactorGUI()
         newSimRPClear = Button("Clear")
         set_gtk_property!(newSimRPClear, :width_request, 150)
         signal_connect(newSimRPClear, :clicked) do widget
-            global newSimRPDataBackup, newSimRPData
+            global newSimRPDataBackup, newSimRPData, newSimTRindex
             empty!(newSimRPList)
             newSimRPData = DataFrames.DataFrame(
                             Parameter = String[], Value = Float64[])
             newSimRPDataBackup = DataFrames.DataFrame()
-            newSimRPDataBackup.Parameter = ["X[0]", "S[0]", "t[0]", "t[f]"]
+
+            if newSimTRindex == true
+                newSimRPDataBackup.Parameter = ["X[0]", "S[0]", "t[0]", "t[f]"]
+            else
+                newSimRPDataBackup.Parameter = ["X[0]", "S[0]", "V", "t[0]", "t[f]"]
+            end
 
             set_gtk_property!(newSimRPEdit, :sensitive, false)
             set_gtk_property!(newSimRPClear, :sensitive, false)
@@ -927,6 +1325,7 @@ function SimBioReactorGUI()
         # Signal connect for exit parameter estimation
         newSimExit = Button("Exit")
         signal_connect(newSimExit, :clicked) do widget
+            visible(newSimFrame6Grid, false)
             destroy(newSim)
             destroy(mainWin)
         end
@@ -934,165 +1333,463 @@ function SimBioReactorGUI()
         newSimClose = Button("Close")
         signal_connect(newSimClose, :clicked) do widget
             visible(newSim, false)
+            visible(newSimFrame6Grid, false)
         end
 
         signal_connect(newSim, "key-press-event") do widget, event
             if event.keyval == 65307
                 visible(newSim, false)
+                visible(newSimFrame6Grid, false)
             end
         end
 
+        # Run simulation
         newSimRun = Button("Run simulation")
         signal_connect(newSimRun, :clicked) do widget
             global newSimRPData, newSimKPData, sol
             if (sum(newSimKPData.Parameter .== "λ")) == 1 && (sum(newSimKPData.Parameter .== "β")) == 1
                 # Model Equations with all kinetic parameters
-                function batch_model1(du,u,p,t)
-                    # Monod model
-                    U = p[1] * (u[2] / (p[2] + u[2]))
-                    # Growth
-                    du[1] = ((t^2)/(p[4] + t^2))*U*u[1] - p[5]*u[1]
-                    # Substrate
-                    du[2] = -(1/p[3])*U*u[1]
+                if newSimTRindex == true
+                    function batch_model1(du,u,p,t)
+                        # Monod model
+                        U = p[1] * (u[2] / (p[2] + u[2]))
+                        # Growth
+                        du[1] = ((t^2)/(p[4] + t^2))*U*u[1] - p[5]*u[1]
+                        # Substrate
+                        du[2] = -(1/p[3])*U*u[1]
+                    end
+
+                    # Solving Model
+                    # Reactor properties
+                    u0X = newSimRPData[newSimRPData.Parameter .== "X[0]", 2]
+                    u0S = newSimRPData[newSimRPData.Parameter .== "S[0]", 2]
+                    t0 = newSimRPData[newSimRPData.Parameter .== "t[0]", 2]
+                    tf = newSimRPData[newSimRPData.Parameter .== "t[f]", 2]
+                    u0 = [u0X[1]  u0S[1]]
+                    tspan = (t0[1],tf[1])
+
+                    # Parameters
+                    Umax = newSimKPData[newSimKPData.Parameter .== "Umax", 2]
+                    Ks = newSimKPData[newSimKPData.Parameter .== "Ks", 2]
+                    Y = newSimKPData[newSimKPData.Parameter .== "Y", 2]
+                    λ = newSimKPData[newSimKPData.Parameter .== "λ", 2]
+                    β = newSimKPData[newSimKPData.Parameter .== "β", 2]
+                    p = [Umax[1], Ks[1], Y[1], λ[1], β[1]]
+
+                    # Solving Model
+                    global prob1 = ODEProblem(batch_model1,u0,tspan, p)
+                else
+                    # Model Equations
+                    function continuo_model1(du,u,p,t)
+                        V = p[1]
+                        U = p[2] * (u[2] / (p[3] + u[2]))
+                        du[1] = ((t^2)/(p[4] + t^2))*U*u[1]- p[5]*u[1] -(p[6]/V)*u[1]
+                        du[2] = -(1/p[7])*U*u[1] + (p[6]/V)*(p[8] - u[2])
+                    end
+
+                    # Solving Model
+                    # Input
+                    F = newSimInputData[newSimInputData.Parameter .== "F", 2]
+                    S0 = newSimInputData[newSimInputData.Parameter .== "S0", 2]
+
+                    # Reactor properties
+                    u0X = newSimRPData[newSimRPData.Parameter .== "X[0]", 2]
+                    u0S = newSimRPData[newSimRPData.Parameter .== "S[0]", 2]
+                    t0 = newSimRPData[newSimRPData.Parameter .== "t[0]", 2]
+                    tf = newSimRPData[newSimRPData.Parameter .== "t[f]", 2]
+                    u0 = [u0X[1]  u0S[1]]
+                    tspan = (t0[1], tf[1])
+
+                    # Parameters
+                    Vr = newSimRPData[newSimRPData.Parameter .== "V", 2]
+                    Umax = newSimKPData[newSimKPData.Parameter .== "Umax", 2]
+                    Ks = newSimKPData[newSimKPData.Parameter .== "Ks", 2]
+                    λ = newSimKPData[newSimKPData.Parameter .== "λ", 2]
+                    β = newSimKPData[newSimKPData.Parameter .== "β", 2]
+                    Y = newSimKPData[newSimKPData.Parameter .== "Y", 2]
+
+                    p = [Vr[1], Umax[1], Ks[1], λ[1], β[1], F[1], Y[1], S0[1]]
+
+                    # Solving Model
+                    global prob1 = ODEProblem(continuo_model1,u0,tspan, p)
                 end
 
-                # Solving Model
-                # Reactor properties
-                u0X = newSimRPData[newSimRPData.Parameter .== "X[0]", 2]
-                u0S = newSimRPData[newSimRPData.Parameter .== "S[0]", 2]
-                t0 = newSimRPData[newSimRPData.Parameter .== "t[0]", 2]
-                tf = newSimRPData[newSimRPData.Parameter .== "t[f]", 2]
-                u0 = [u0X[1]  u0S[1]]
-                tspan = (t0[1],tf[1])
-
-                # Parameters
-                Umax = newSimKPData[newSimKPData.Parameter .== "Umax", 2]
-                Ks = newSimKPData[newSimKPData.Parameter .== "Ks", 2]
-                Y = newSimKPData[newSimKPData.Parameter .== "Y", 2]
-                λ = newSimKPData[newSimKPData.Parameter .== "λ", 2]
-                β = newSimKPData[newSimKPData.Parameter .== "β", 2]
-                p = [Umax[1], Ks[1], Y[1], λ[1], β[1]]
-
-                # Solving Model
-                prob1 = ODEProblem(batch_model1,u0,tspan, p)
                 sol = solve(prob1, DP5(), saveat = 1)
-                println(1)
+                global newSimPlotIdx = true
                 newSimRunMe()
+                set_gtk_property!(newSimWinFrame10, :sensitive, true)
             end
 
             # Model Equations with λ
             if (sum(newSimKPData.Parameter .== "β")) == 0 && (sum(newSimKPData.Parameter .== "λ")) == 1
-                # Model Equations with λ
-                function batch_model2(du,u,p,t)
-                    # Monod model
-                    U = p[1] * (u[2] / (p[2] + u[2]))
-                    # Growth
-                    du[1] = ((t^2)/(p[4] + t^2))*U*u[1]
-                    # Substrate
-                    du[2] = -(1/p[3])*U*u[1]
+                if newSimTRindex == true
+                    # Model Equations with λ
+                    function batch_model2(du,u,p,t)
+                        # Monod model
+                        U = p[1] * (u[2] / (p[2] + u[2]))
+                        # Growth
+                        du[1] = ((t^2)/(p[4] + t^2))*U*u[1]
+                        # Substrate
+                        du[2] = -(1/p[3])*U*u[1]
+                    end
+
+                    # Solving Model
+                    # Reactor properties
+                    u0X = newSimRPData[newSimRPData.Parameter .== "X[0]", 2]
+                    u0S = newSimRPData[newSimRPData.Parameter .== "S[0]", 2]
+                    t0 = newSimRPData[newSimRPData.Parameter .== "t[0]", 2]
+                    tf = newSimRPData[newSimRPData.Parameter .== "t[f]", 2]
+                    u0 = [u0X[1]  u0S[1]]
+                    tspan = (t0[1],tf[1])
+
+                    # Parameters
+                    Umax = newSimKPData[newSimKPData.Parameter .== "Umax", 2]
+                    Ks = newSimKPData[newSimKPData.Parameter .== "Ks", 2]
+                    Y = newSimKPData[newSimKPData.Parameter .== "Y", 2]
+                    λ = newSimKPData[newSimKPData.Parameter .== "λ", 2]
+                    p = [Umax[1], Ks[1], Y[1], λ[1]]
+
+                    # Solving Model
+                    prob2 = ODEProblem(batch_model2,u0,tspan, p)
+                    sol = solve(prob2, DP5(), saveat = 1)
+                else
+                    # Model Equations
+                    function continuo_model2(du,u,p,t)
+                        V = p[1]
+                        U = p[2] * (u[2] / (p[3] + u[2]))
+                        du[1] = ((t^2)/(p[4] + t^2))*U*u[1] - (p[5]/V)*u[1]
+                        du[2] = -(1/p[6])*U*u[1] + (p[5]/V)*(p[7] - u[2])
+                    end
+
+                    # Solving Model
+                    # Input
+                    F = newSimInputData[newSimInputData.Parameter .== "F", 2]
+                    S0 = newSimInputData[newSimInputData.Parameter .== "S0", 2]
+
+                    # Reactor properties
+                    u0X = newSimRPData[newSimRPData.Parameter .== "X[0]", 2]
+                    u0S = newSimRPData[newSimRPData.Parameter .== "S[0]", 2]
+                    t0 = newSimRPData[newSimRPData.Parameter .== "t[0]", 2]
+                    tf = newSimRPData[newSimRPData.Parameter .== "t[f]", 2]
+                    u0 = [u0X[1]  u0S[1]]
+                    tspan = (t0[1], tf[1])
+
+                    # Parameters
+                    Vr = newSimRPData[newSimRPData.Parameter .== "V", 2]
+                    Umax = newSimKPData[newSimKPData.Parameter .== "Umax", 2]
+                    Ks = newSimKPData[newSimKPData.Parameter .== "Ks", 2]
+                    λ = newSimKPData[newSimKPData.Parameter .== "λ", 2]
+                    Y = newSimKPData[newSimKPData.Parameter .== "Y", 2]
+
+                    p = [Vr[1], Umax[1], Ks[1], λ[1], F[1], Y[1], S0[1]]
+
+                    # Solving Model
+                    global prob2 = ODEProblem(continuo_model2,u0,tspan, p)
                 end
 
-                # Solving Model
-                # Reactor properties
-                u0X = newSimRPData[newSimRPData.Parameter .== "X[0]", 2]
-                u0S = newSimRPData[newSimRPData.Parameter .== "S[0]", 2]
-                t0 = newSimRPData[newSimRPData.Parameter .== "t[0]", 2]
-                tf = newSimRPData[newSimRPData.Parameter .== "t[f]", 2]
-                u0 = [u0X[1]  u0S[1]]
-                tspan = (t0[1],tf[1])
-
-                # Parameters
-                Umax = newSimKPData[newSimKPData.Parameter .== "Umax", 2]
-                Ks = newSimKPData[newSimKPData.Parameter .== "Ks", 2]
-                Y = newSimKPData[newSimKPData.Parameter .== "Y", 2]
-                λ = newSimKPData[newSimKPData.Parameter .== "λ", 2]
-                p = [Umax[1], Ks[1], Y[1], λ[1]]
-
-                # Solving Model
-                prob2 = ODEProblem(batch_model2,u0,tspan, p)
                 sol = solve(prob2, DP5(), saveat = 1)
-                println(2)
+                global newSimPlotIdx = true
                 newSimRunMe()
+                set_gtk_property!(newSimWinFrame10, :sensitive, true)
             end
 
             # Model Equations with β
             if (sum(newSimKPData.Parameter .== "λ")) == 0 && (sum(newSimKPData.Parameter .== "β")) == 1
-                # Model Equations without λ
-                function batch_model3(du,u,p,t)
-                    # Monod model
-                    U = p[1] * (u[2] / (p[2] + u[2]))
-                    # Growth
-                    du[1] = U*u[1] - p[4]*u[1]
-                    # Substrate
-                    du[2] = -(1/p[3])*U*u[1]
+                if newSimTRindex == true
+                    # Model Equations without λ
+                    function batch_model3(du,u,p,t)
+                        # Monod model
+                        U = p[1] * (u[2] / (p[2] + u[2]))
+                        # Growth
+                        du[1] = U*u[1] - p[4]*u[1]
+                        # Substrate
+                        du[2] = -(1/p[3])*U*u[1]
+                    end
+
+                    # Solving Model
+                    # Reactor properties
+                    u0X = newSimRPData[newSimRPData.Parameter .== "X[0]", 2]
+                    u0S = newSimRPData[newSimRPData.Parameter .== "S[0]", 2]
+                    t0 = newSimRPData[newSimRPData.Parameter .== "t[0]", 2]
+                    tf = newSimRPData[newSimRPData.Parameter .== "t[f]", 2]
+                    u0 = [u0X[1]  u0S[1]]
+                    tspan = (t0[1],tf[1])
+
+                    # Parameters
+                    Umax = newSimKPData[newSimKPData.Parameter .== "Umax", 2]
+                    Ks = newSimKPData[newSimKPData.Parameter .== "Ks", 2]
+                    Y = newSimKPData[newSimKPData.Parameter .== "Y", 2]
+                    β = newSimKPData[newSimKPData.Parameter .== "β", 2]
+                    p = [Umax[1], Ks[1], Y[1], β[1]]
+
+                    # Solving Model
+                    prob3 = ODEProblem(batch_model3,u0,tspan, p)
+                else
+                    # Model Equations
+                    function continuo_model3(du,u,p,t)
+                        V = p[1]
+                        U = p[2] * (u[2] / (p[3] + u[2]))
+                        du[1] = U*u[1]- p[4]*u[1] -(p[5]/V)*u[1]
+                        du[2] = -(1/p[6])*U*u[1] + (p[5]/V)*(p[7] - u[2])
+                    end
+
+                    # Solving Model
+                    # Input
+                    F = newSimInputData[newSimInputData.Parameter .== "F", 2]
+                    S0 = newSimInputData[newSimInputData.Parameter .== "S0", 2]
+
+                    # Reactor properties
+                    u0X = newSimRPData[newSimRPData.Parameter .== "X[0]", 2]
+                    u0S = newSimRPData[newSimRPData.Parameter .== "S[0]", 2]
+                    t0 = newSimRPData[newSimRPData.Parameter .== "t[0]", 2]
+                    tf = newSimRPData[newSimRPData.Parameter .== "t[f]", 2]
+                    u0 = [u0X[1]  u0S[1]]
+                    tspan = (t0[1], tf[1])
+
+                    # Parameters
+                    Vr = newSimRPData[newSimRPData.Parameter .== "V", 2]
+                    Umax = newSimKPData[newSimKPData.Parameter .== "Umax", 2]
+                    Ks = newSimKPData[newSimKPData.Parameter .== "Ks", 2]
+                    β = newSimKPData[newSimKPData.Parameter .== "β", 2]
+                    Y = newSimKPData[newSimKPData.Parameter .== "Y", 2]
+
+                    p = [Vr[1], Umax[1], Ks[1], β[1], F[1], Y[1], S0[1]]
+
+                    # Solving Model
+                    global prob3 = ODEProblem(continuo_model3,u0,tspan, p)
                 end
 
-                # Solving Model
-                # Reactor properties
-                u0X = newSimRPData[newSimRPData.Parameter .== "X[0]", 2]
-                u0S = newSimRPData[newSimRPData.Parameter .== "S[0]", 2]
-                t0 = newSimRPData[newSimRPData.Parameter .== "t[0]", 2]
-                tf = newSimRPData[newSimRPData.Parameter .== "t[f]", 2]
-                u0 = [u0X[1]  u0S[1]]
-                tspan = (t0[1],tf[1])
-
-                # Parameters
-                Umax = newSimKPData[newSimKPData.Parameter .== "Umax", 2]
-                Ks = newSimKPData[newSimKPData.Parameter .== "Ks", 2]
-                Y = newSimKPData[newSimKPData.Parameter .== "Y", 2]
-                β = newSimKPData[newSimKPData.Parameter .== "β", 2]
-                p = [Umax[1], Ks[1], Y[1], β[1]]
-
-                # Solving Model
-                prob3 = ODEProblem(batch_model3,u0,tspan, p)
                 sol = solve(prob3, DP5(), saveat = 1)
-                println(3)
+                global newSimPlotIdx = true
                 newSimRunMe()
+                set_gtk_property!(newSimWinFrame10, :sensitive, true)
             end
 
             # Model Equations with β & λ
             if (sum(newSimKPData.Parameter .== "λ")) == 0 && (sum(newSimKPData.Parameter .== "β")) == 0
-                # Model Equations without λ
-                function batch_model4(du,u,p,t)
-                    # Monod model
-                    U = p[1] * (u[2] / (p[2] + u[2]))
-                    # Growth
-                    du[1] = U*u[1]
-                    # Substrate
-                    du[2] = -(1/p[3])*U*u[1]
+                if newSimTRindex == true
+                    # Model Equations without λ
+                    function batch_model4(du,u,p,t)
+                        # Monod model
+                        U = p[1] * (u[2] / (p[2] + u[2]))
+                        # Growth
+                        du[1] = U*u[1]
+                        # Substrate
+                        du[2] = -(1/p[3])*U*u[1]
+                    end
+
+                    # Solving Model
+                    # Reactor properties
+                    u0X = newSimRPData[newSimRPData.Parameter .== "X[0]", 2]
+                    u0S = newSimRPData[newSimRPData.Parameter .== "S[0]", 2]
+                    t0 = newSimRPData[newSimRPData.Parameter .== "t[0]", 2]
+                    tf = newSimRPData[newSimRPData.Parameter .== "t[f]", 2]
+                    u0 = [u0X[1]  u0S[1]]
+                    tspan = (t0[1],tf[1])
+
+                    # Parameters
+                    Umax = newSimKPData[newSimKPData.Parameter .== "Umax", 2]
+                    Ks = newSimKPData[newSimKPData.Parameter .== "Ks", 2]
+                    Y = newSimKPData[newSimKPData.Parameter .== "Y", 2]
+                    p = [Umax[1], Ks[1], Y[1]]
+
+                    # Solving Model
+                    prob4 = ODEProblem(batch_model4,u0,tspan, p)
+                else
+                    # Model Equations
+                    function continuo_model4(du,u,p,t)
+                        V = p[1]
+                        U = p[2] * (u[2] / (p[3] + u[2]))
+                        du[1] = U*u[1] - (p[4]/V)*u[1]
+                        du[2] = -(1/p[5])*U*u[1] + (p[4]/V)*(p[6] - u[2])
+                    end
+
+                    # Solving Model
+                    # Input
+                    F = newSimInputData[newSimInputData.Parameter .== "F", 2]
+                    S0 = newSimInputData[newSimInputData.Parameter .== "S0", 2]
+
+                    # Reactor properties
+                    u0X = newSimRPData[newSimRPData.Parameter .== "X[0]", 2]
+                    u0S = newSimRPData[newSimRPData.Parameter .== "S[0]", 2]
+                    t0 = newSimRPData[newSimRPData.Parameter .== "t[0]", 2]
+                    tf = newSimRPData[newSimRPData.Parameter .== "t[f]", 2]
+                    u0 = [u0X[1]  u0S[1]]
+                    tspan = (t0[1], tf[1])
+
+                    # Parameters
+                    Vr = newSimRPData[newSimRPData.Parameter .== "V", 2]
+                    Umax = newSimKPData[newSimKPData.Parameter .== "Umax", 2]
+                    Ks = newSimKPData[newSimKPData.Parameter .== "Ks", 2]
+                    Y = newSimKPData[newSimKPData.Parameter .== "Y", 2]
+
+                    p = [Vr[1], Umax[1], Ks[1], F[1], Y[1], S0[1]]
+
+                    # Solving Model
+                    global prob4 = ODEProblem(continuo_model4,u0,tspan, p)
                 end
 
-                # Solving Model
-                # Reactor properties
-                u0X = newSimRPData[newSimRPData.Parameter .== "X[0]", 2]
-                u0S = newSimRPData[newSimRPData.Parameter .== "S[0]", 2]
-                t0 = newSimRPData[newSimRPData.Parameter .== "t[0]", 2]
-                tf = newSimRPData[newSimRPData.Parameter .== "t[f]", 2]
-                u0 = [u0X[1]  u0S[1]]
-                tspan = (t0[1],tf[1])
-
-                # Parameters
-                Umax = newSimKPData[newSimKPData.Parameter .== "Umax", 2]
-                Ks = newSimKPData[newSimKPData.Parameter .== "Ks", 2]
-                Y = newSimKPData[newSimKPData.Parameter .== "Y", 2]
-                p = [Umax[1], Ks[1], Y[1]]
-
-                # Solving Model
-                prob4 = ODEProblem(batch_model4,u0,tspan, p)
                 sol = solve(prob4, DP5(), saveat = 1)
-                println(4)
+                global newSimPlotIdx = true
                 newSimRunMe()
+                set_gtk_property!(newSimWinFrame10, :sensitive, true)
             end
+
+            visible(newSimFrame6Grid, true)
         end
 
         # TODO Report for sim
         newSimReport = Button("Report")
+        signal_connect(newSimReport, :clicked) do widget
+            global sol, tvals, Xvals, Yvals
+            tvals = sol.t
+            Xvals = sol[1,:]
+            Yvals = sol[2,:]
 
+            # Time for report
+            timenow = Dates.now()
+            timenow1 = Dates.format(timenow, "dd u yyyy HH:MM:SS")
+
+            global plt2 = Plots.plot(
+                tvals, Xvals,
+                xlim=(tvals[1], tvals[end]),
+                xticks=tvals[1]:((tvals[end]-tvals[1])/10):tvals[end],
+                ylim=(Xvals[1], ceil(maximum(Xvals)*1.20)),
+                yticks=range(Xvals[1], ceil(maximum(Xvals)*1.20), length=6),
+                framestyle = :box)
+
+            Plots.savefig(plt2,
+                    string("C:\\Windows\\Temp\\", "SimulationReport1.png"))
+
+            global plt3 = Plots.plot(
+                tvals, Yvals,
+                xlim=(tvals[1], tvals[end]),
+                xticks=tvals[1]:((tvals[end]-tvals[1])/10):tvals[end],
+                ylim=(Yvals[1], ceil(maximum(Yvals)*1.20)),
+                yticks=range(Yvals[1], ceil(maximum(Yvals)*1.20), length=6),
+                framestyle = :box)
+
+            Plots.savefig(plt3,
+                    string("C:\\Windows\\Temp\\", "SimulationReport2.png"))
+
+
+            LSNS = """
+            \\documentclass{article}
+            \\usepackage{graphicx}
+            \\graphicspath{ {C:/Windows/Temp/} }
+            \\usepackage[letterpaper, portrait, margin=1in]{geometry}
+            \\begin{document}
+            \\begin{center}
+            \\Huge{\\textbf{SimBioReactor v1.0}}\\\\
+            \\vspace{2mm}
+            \\large{\\textbf{Simulation Report}}\\break
+            \\normalsize{{:time}}\n
+            \\vspace{5mm}
+            \\rule{15cm}{0.05cm}\n\n\n
+            \\vspace{2mm}
+            \\includegraphics[width=10cm, height=7cm]{SimulationReport1}\n
+            \\normalsize{Figure 1. Growth}\n
+            \\vspace{2mm}
+            \\includegraphics[width=10cm, height=7cm]{SimulationReport2}\n
+            \\normalsize{Figure 2. Substrate}\n
+            \\vspace{3mm}\n
+            \\rule{15cm}{0.05cm}\n
+            \\end{center}
+            \\end{document}
+            """
+
+            rendered = render(
+                LSNS,
+                time = timenow1)
+
+            filename = string(
+                "C:\\Windows\\Temp\\",
+                "SimulationReport.tex"
+            )
+            Base.open(filename, "w") do file
+                write(file, rendered)
+            end
+            run(`pdflatex -output-directory="C:\\Windows\\Temp\\" "SimulationReport.tex"`)
+            DefaultApplication.open(string(
+                "C:\\Windows\\Temp\\",
+                "SimulationReport.pdf"
+            ))
+        end
+
+        # Export figures for simulation section
         newSimExport = Button("Export")
+        signal_connect(newSimExport, :clicked) do widget
+            global sol, tvals, Xvals, Yvals, Lili, newSimPlotIdx
+            tvals = sol.t
+            Xvals = sol[1,:]
+            Yvals = sol[2,:]
+
+            global Lili = save_dialog_native("Save as...", Null(), ("*.png",))
+
+            if isempty(Lili) != true
+                if newSimPlotIdx == true
+                    pltsim = Plots.plot!(
+                        tvals, Xvals,
+                        xlim=(tvals[1], tvals[end]),
+                        xticks=tvals[1]:((tvals[end]-tvals[1])/10):tvals[end],
+                        ylim=(Xvals[1], ceil(maximum(Xvals)*1.20)),
+                        yticks=range(Xvals[1], ceil(maximum(Xvals)*1.20), length=6),
+                        framestyle = :box, xlabel = "Time", ylabel = "Growth")
+                        Plots.savefig(pltsim, string(Lili, ".png"))
+                else
+                    pltsim = Plots.plot(
+                        tvals, Yvals,
+                        xlim=(tvals[1], tvals[end]),
+                        xticks=tvals[1]:((tvals[end]-tvals[1])/10):tvals[end],
+                        ylim=(Yvals[1], ceil(maximum(Yvals)*1.20)),
+                        yticks=range(Yvals[1], ceil(maximum(Yvals)*1.20), length=6),
+                        framestyle = :box, xlabel = "Time", ylabel = "Substrate")
+                        Plots.savefig(pltsim, string(Lili, ".png"))
+                end
+            end
+        end
 
         # Signal connect to clear plot
         newSimClearPlot = Button("Clear all")
         signal_connect(newSimClearPlot, :clicked) do widget
+            # clear KP
+            global newSimKPDataBackup, newSimKPData
+            empty!(newSimKPList)
+            newSimKPData = DataFrames.DataFrame(
+                            Parameter = String[], Value = Float64[])
+            global newSimKPDataBackup = DataFrames.DataFrame()
+            newSimKPDataBackup.Parameter = ["Umax","Ks", "Y", "λ", "β"]
+
+            set_gtk_property!(newSimKPEdit, :sensitive, false)
+            set_gtk_property!(newSimKPClear, :sensitive, false)
+
+            # clear RP
+            global newSimRPDataBackup, newSimRPData
+            empty!(newSimRPList)
+            newSimRPData = DataFrames.DataFrame(
+                            Parameter = String[], Value = Float64[])
+            newSimRPDataBackup = DataFrames.DataFrame()
+            newSimRPDataBackup.Parameter = ["X[0]", "S[0]", "t[0]", "t[f]"]
+
+            set_gtk_property!(newSimRPEdit, :sensitive, false)
+            set_gtk_property!(newSimRPClear, :sensitive, false)
+            set_gtk_property!(newSimWinFrame10, :sensitive, false)
+
+            global newSimInputDataBackup, newSimInputData
+            empty!(newSimInputList)
+            newSimInputData = DataFrames.DataFrame(
+                            Parameter = String[], Value = Float64[])
+            newSimInputDataBackup = DataFrames.DataFrame()
+            newSimInputDataBackup.Parameter = ["F", "S0"]
+
+
+            set_gtk_property!(newSimInputEdit, :sensitive, false)
+            set_gtk_property!(newSimInputClear, :sensitive, false)
+            set_gtk_property!(newSimRun, :sensitive, false)
+            set_gtk_property!(newSimReport, :sensitive, false)
+            set_gtk_property!(newSimExport, :sensitive, false)
+            set_gtk_property!(newSimClearPlot, :sensitive, false)
+            visible(newSimFrame6Grid, false)
         end
 
         # Initial state of buttons
@@ -1100,16 +1797,16 @@ function SimBioReactorGUI()
         set_gtk_property!(newSimReport, :sensitive, false)
         set_gtk_property!(newSimExport, :sensitive, false)
         set_gtk_property!(newSimClearPlot, :sensitive, false)
-        set_gtk_property!(newSimInputDelete, :sensitive, false)
+        set_gtk_property!(newSimInputEdit, :sensitive, false)
         set_gtk_property!(newSimInputClear, :sensitive, false)
         set_gtk_property!(newSimKPEdit, :sensitive, false)
         set_gtk_property!(newSimKPClear, :sensitive, false)
         set_gtk_property!(newSimRPEdit, :sensitive, false)
         set_gtk_property!(newSimRPClear, :sensitive, false)
+        set_gtk_property!(newSimWinFrame10, :sensitive, false)
 
         visible(newSim, true)
 
-        # TODO plot for sim
         ####################################################################
         # Plot
         ####################################################################
@@ -1121,19 +1818,31 @@ function SimBioReactorGUI()
         end
 
         function newSimMyDraw(widget)
-            global sol, tvals, Xvals, Yvals
+            global sol, tvals, Xvals, Yvals, newSimPlotIdx
             ctx = Gtk.getgc(widget)
             ENV["GKS_WSTYPE"] = "142"
             ENV["GKSconid"] = @sprintf("%lu", UInt64(ctx.ptr))
 
-            GR.plot(
-                tvals, Xvals,
-                size = [540, 440],
-                xlim = (tvals[1], tvals[end]),
-                ylim = (Xvals[1], ceil(maximum(Xvals)*1.20)),
-                xlabel = "Time",
-                ylabel = "Growth"
-                )
+            if newSimPlotIdx == true
+                GR.plot(
+                    tvals, Xvals,
+                    size = [540, 440],
+                    xlim = (tvals[1], tvals[end]),
+                    ylim = (0, ceil(maximum(Xvals)*1.20)),
+                    xlabel = "Time",
+                    ylabel = "Growth"
+                    )
+            else
+                GR.plot(
+                    tvals, Yvals,
+                    size = [540, 440],
+                    xlim = (tvals[1], tvals[end]),
+                    ylim = (0, ceil(maximum(Yvals)*1.20)),
+                    xlabel = "Time",
+                    ylabel = "Substrate"
+                    )
+            end
+
         end
 
         #function newSim_on_button_clicked(w)
@@ -1144,9 +1853,10 @@ function SimBioReactorGUI()
 
         function newSimRunMe()
             global newSimCanvas
+
             newSimCanvas = Canvas(540, 440)
 
-            newSimFrame6Grid[1, 1] = newSimCanvas
+            newSimFrame6Grid[1:4, 1] = newSimCanvas
 
             newSimCanvas.draw = newSimMyDraw
             newSimPlot(newSimCanvas)
@@ -1168,11 +1878,12 @@ function SimBioReactorGUI()
         newSimWinGridM1[1, 4] = newSimWinFrame4
 
         newSimWinGridM2[1, 1] = newSimWinFrame8
-        newSimWinGridM2[1, 2] = newSimWinFrame9
+        newSimWinGridM2[1, 2] = newSimWinFrame10
+        newSimWinGridM2[1, 3] = newSimWinFrame9
 
         newSimFrame2Grid[1, 1:3] = newSimWinFrame5
         newSimFrame2Grid[2, 1] = newSimInputAdd
-        newSimFrame2Grid[2, 2] = newSimInputDelete
+        newSimFrame2Grid[2, 2] = newSimInputEdit
         newSimFrame2Grid[2, 3] = newSimInputClear
 
         newSimFrame3Grid[1, 1:3] = newSimWinFrame6
@@ -1198,6 +1909,7 @@ function SimBioReactorGUI()
         push!(newSimWinFrame4, newSimFrame4Grid)
         push!(newSimWinFrame8, newSimFrame6Grid)
         push!(newSimWinFrame9, newSimFrame5Grid)
+        push!(newSimWinFrame10, newSimFrame7Grid)
 
         push!(newSim, newSimWinGrid0)
         showall(newSim)
@@ -2171,6 +2883,8 @@ function SimBioReactorGUI()
                     GR.oplot(
                         xvals[], yFit,
                         size = [540, 440],
+                        xlim = (xvals[][1], xvals[][end]),
+                        ylim = (0, ceil(maximum(yvals[])*1.20)),
                         xlabel = String(labelX),
                         ylabel = String(labelY)
                     )
